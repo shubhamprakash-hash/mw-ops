@@ -6,14 +6,14 @@
    ============================================================ */
 const path = require('path');
 const fs = require('fs');
-const Database = require('./sqlite');
+const { createDb } = require('./sqlite');
 const bcrypt = require('bcryptjs');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'mw-ops.db');
 
-const db = new Database(DB_PATH);
+const db = createDb(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
@@ -297,6 +297,39 @@ CREATE TABLE IF NOT EXISTS user_permissions (
   granted_by INTEGER REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now')),
   UNIQUE(user_id, capability)
+);
+
+-- user-defined custom fields (add / rename / remove) for core records
+CREATE TABLE IF NOT EXISTS custom_fields (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity TEXT NOT NULL,                -- job | client
+  field_key TEXT NOT NULL,             -- stable machine key (never renamed)
+  label TEXT NOT NULL,                 -- display name (editable)
+  type TEXT DEFAULT 'text',            -- text | number | date | select | textarea
+  options TEXT DEFAULT '',             -- comma-separated choices for 'select'
+  position INTEGER DEFAULT 0,
+  active INTEGER DEFAULT 1,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(entity, field_key)
+);
+CREATE TABLE IF NOT EXISTS custom_field_values (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  field_id INTEGER NOT NULL REFERENCES custom_fields(id) ON DELETE CASCADE,
+  entity TEXT NOT NULL,
+  record_id INTEGER NOT NULL,
+  value TEXT DEFAULT '',
+  UNIQUE(field_id, record_id)
+);
+
+-- one-time numeric codes for Super-Admin self-service password reset (emailed)
+CREATE TABLE IF NOT EXISTS reset_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_act_job ON activity_log(job_id);
@@ -589,15 +622,23 @@ function seed() {
   console.log(`Default password for all seeded users: "${DEFAULT_PW}" (must change on first login).`);
 }
 
-if (require.main === module && process.argv.includes('--reseed')) {
-  db.exec(`DELETE FROM activity_log; DELETE FROM issues; DELETE FROM job_teams; DELETE FROM user_permissions;
+// Order matters only loosely thanks to cascades; listed child→parent for clarity.
+function wipeAll() {
+  db.exec(`DELETE FROM custom_field_values; DELETE FROM reset_codes;
+    DELETE FROM activity_log; DELETE FROM issues; DELETE FROM job_teams; DELETE FROM user_permissions;
     DELETE FROM notifications; DELETE FROM brief_versions; DELETE FROM attachments;
     DELETE FROM subtasks; DELETE FROM workflow_stages;
     DELETE FROM approvals; DELETE FROM daily_submissions;
     DELETE FROM timesheet_entries; DELETE FROM job_assignments; DELETE FROM jobs;
     DELETE FROM cost_rates; DELETE FROM team_members; DELETE FROM clients;
-    DELETE FROM users; DELETE FROM departments; DELETE FROM teams; DELETE FROM verticals;`);
-  seed();
+    DELETE FROM users; DELETE FROM departments; DELETE FROM teams; DELETE FROM verticals;
+    DELETE FROM custom_fields;`);
+}
+// Wipe then re-seed the demo dataset (used by Data Management → "reset to sample data").
+function resetToSeed() { wipeAll(); seed(); }
+
+if (require.main === module && process.argv.includes('--reseed')) {
+  resetToSeed();
   console.log('Reseeded.');
 } else if (!alreadySeeded()) {
   seed();
@@ -605,4 +646,5 @@ if (require.main === module && process.argv.includes('--reseed')) {
 
 module.exports = { db, ROLES, ROLE_RANK, isBackend, isSuper, canSeeMoney, canSetRetainerCost,
   CAPABILITIES, ROLE_CAPS, capabilitiesOf, userHasCap,
-  STAGES, APPROVAL, LEVEL_FOR_ROLE, NEXT_APPROVAL, OFFICE_DOMAIN };
+  STAGES, APPROVAL, LEVEL_FOR_ROLE, NEXT_APPROVAL, OFFICE_DOMAIN,
+  DB_PATH, DATA_DIR, seed, wipeAll, resetToSeed, alreadySeeded };

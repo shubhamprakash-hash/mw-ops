@@ -83,14 +83,55 @@ function mountLogin(err){
     <input id="pw" type="password" placeholder="••••••••" autocomplete="current-password">
     ${err?`<div class="err">${esc(err)}</div>`:''}
     <button class="btn pri" id="go" style="width:100%;justify-content:center;margin-top:18px;padding:11px">Sign in</button>
-    <div class="domain-hint" style="text-align:center;margin-top:14px">Forgot your password? Ask an admin to reset it for you.</div>`);
+    <div class="domain-hint" style="text-align:center;margin-top:14px">Forgot your password? Ask an admin to reset it — or, for Super Admins, <span class="linkbtn" id="superForgot">reset by email</span>.</div>`);
   const submit=async()=>{
     try{ const r=await api('POST','/login',{email:val('email'),password:value('pw')}); ME=r.user; clearMasters(); mountApp(); }
     catch(e){ mountLogin(e.message); }
   };
   document.getElementById('go').onclick=submit;
   document.getElementById('pw').onkeydown=e=>{if(e.key==='Enter')submit();};
+  document.getElementById('superForgot').onclick=()=>superResetRequest();
   document.getElementById('email').focus();
+}
+
+function superResetRequest(prefill){
+  loginShell(`
+    <h1 style="font-size:18px;margin:4px 0">Super Admin password reset</h1>
+    <p style="color:var(--ink2);font-size:13px;margin:2px 0 8px">Enter your Super Admin email. If it's recognised, a 6-digit code is sent to that address (valid 15 minutes).</p>
+    <label>Email</label>
+    <input id="sr_email" type="email" value="${esc(prefill||'')}" placeholder="you@${esc(CFG.office_domain)}" autocomplete="username">
+    <div id="sr_msg"></div>
+    <button class="btn pri" id="sr_go" style="width:100%;justify-content:center;margin-top:16px;padding:11px">Send code</button>
+    <div style="text-align:center;margin-top:14px"><span class="linkbtn" id="sr_have">I already have a code</span> · <span class="linkbtn" id="sr_back">← Back</span></div>`);
+  document.getElementById('sr_back').onclick=()=>mountLogin();
+  document.getElementById('sr_have').onclick=()=>superResetConfirm(val('sr_email'));
+  document.getElementById('sr_go').onclick=async()=>{
+    const email=val('sr_email'); if(!email)return;
+    try{ await api('POST','/super-reset/request',{email}); superResetConfirm(email,true); }
+    catch(e){ toast(e.message,true); }
+  };
+  document.getElementById('sr_email').focus();
+}
+function superResetConfirm(email,sent){
+  loginShell(`
+    <h1 style="font-size:18px;margin:4px 0">Enter your code</h1>
+    ${sent?`<div class="note info" style="margin:4px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>If ${esc(email)} is a Super Admin, a code is on its way.</div>`:''}
+    <label>Email</label><input id="sc_email" type="email" value="${esc(email||'')}" autocomplete="username">
+    <label>6-digit code</label><input id="sc_code" inputmode="numeric" maxlength="6" placeholder="••••••">
+    <label>New password</label><input id="sc_pw" type="password" autocomplete="new-password" placeholder="at least 8 characters">
+    <div id="sc_msg"></div>
+    <button class="btn pri" id="sc_go" style="width:100%;justify-content:center;margin-top:16px;padding:11px">Set new password</button>
+    <div style="text-align:center;margin-top:14px"><span class="linkbtn" id="sc_resend">Send a new code</span> · <span class="linkbtn" id="sc_back">← Back to sign in</span></div>`);
+  document.getElementById('sc_back').onclick=()=>mountLogin();
+  document.getElementById('sc_resend').onclick=()=>superResetRequest(val('sc_email'));
+  document.getElementById('sc_go').onclick=async()=>{
+    try{ await api('POST','/super-reset/confirm',{email:val('sc_email'),code:val('sc_code'),new_password:value('sc_pw')});
+      loginShell(`<div class="note info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>Password updated. You can sign in now.</div>
+        <button class="btn pri" id="sc_done" style="width:100%;justify-content:center;margin-top:16px;padding:11px">Go to sign in</button>`);
+      document.getElementById('sc_done').onclick=()=>mountLogin();
+    }catch(e){ document.getElementById('sc_msg').innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+  };
+  document.getElementById('sc_code').focus();
 }
 
 function changePwScreen(){
@@ -125,7 +166,7 @@ function navFor(role){
   if(hasCap('manage_masters')) nav.push(['masters','Masters',icon('layers')]);
   if(hasCap('manage_users')) nav.push(['users','Users',icon('users')]);
   if(hasCap('view_activity')) nav.push(['activity','Activity',icon('history')]);
-  if(isSuper()) nav.push(['permissions','Permissions',icon('key')]);
+  if(isSuper()) nav.push(['permissions','Permissions',icon('key')],['data','Data',icon('database')]);
   return nav;
 }
 const VIEW_TITLES={
@@ -139,6 +180,7 @@ const VIEW_TITLES={
   reports:['Reports','Bandwidth & year-on-year trends'],
   activity:['Activity','The audit trail across jobs'],
   permissions:['Permissions','Grant access, per person'],
+  data:['Data management','Back up, export, restore & reset'],
   masters:['Masters','Verticals, teams, departments & clients'],
   users:['Users','People, roles, departments & rates'],
 };
@@ -230,7 +272,7 @@ function renderView(){
   const C=document.getElementById('content'); C.innerHTML=`<div style="padding:40px;text-align:center"><span class="spin"></span></div>`;
   ({my_jobs:viewMyJobs,timesheet:viewTimesheet,my_status:viewMyStatus,board:viewBoard,
     approvals:viewApprovals,dashboard:viewDashboard,pnl:viewPnl,reports:viewReports,
-    activity:viewActivity,permissions:viewPermissions,masters:viewMasters,users:viewUsers}[VIEW])(C);
+    activity:viewActivity,permissions:viewPermissions,data:viewData,masters:viewMasters,users:viewUsers}[VIEW])(C);
 }
 
 /* ============================================================
@@ -492,10 +534,22 @@ async function assignModal(job, people){
   });
 }
 
+async function customDefs(entity){ try{ return await api('GET','/custom-fields?entity='+entity); }catch{ return []; } }
+function cfInput(f,v){
+  v=v==null?'':v;
+  if(f.type==='textarea') return `<textarea id="cf_${f.field_key}">${esc(v)}</textarea>`;
+  if(f.type==='number') return `<input id="cf_${f.field_key}" type="number" value="${esc(v)}">`;
+  if(f.type==='date') return `<input id="cf_${f.field_key}" type="date" value="${esc(v)}">`;
+  if(f.type==='select'){ const o=(f.options||'').split(',').map(s=>s.trim()).filter(Boolean); return `<select id="cf_${f.field_key}"><option value="">—</option>${o.map(x=>`<option ${v===x?'selected':''}>${esc(x)}</option>`).join('')}</select>`; }
+  return `<input id="cf_${f.field_key}" value="${esc(v)}">`;
+}
+const customFieldsHtml=(defs,vals)=>defs.map(f=>`<div class="field ${f.type==='textarea'?'full':''}"><label>${esc(f.label)}</label>${cfInput(f,(vals||{})[f.field_key])}</div>`).join('');
+function collectCustom(defs){ const c={}; defs.forEach(f=>{ const el=document.getElementById('cf_'+f.field_key); if(el)c[f.field_key]=el.value; }); return c; }
+
 async function jobModal(job){
   const isNew=!job;
-  let clients=[], verticals=[], teams=[], stages=[];
-  try{ [clients,verticals,teams,stages]=await Promise.all([masters('clients'),masters('verticals'),masters('teams'),masters('stages')]); }catch{}
+  let clients=[], verticals=[], teams=[], stages=[], cfDefs=[];
+  try{ [clients,verticals,teams,stages,cfDefs]=await Promise.all([masters('clients'),masters('verticals'),masters('teams'),masters('stages'),customDefs('job')]); }catch{}
   job=job||{job_no:'',ref_no:'',client_id:'',vertical_id:'',team:'',stage:'Pipeline',workflow_stage_id:'',task:'Design',brief:'',billing:0,due_date:'',delivery_date:''};
   const clientOpts=`<option value="">— select client —</option>`+clients.map(c=>`<option value="${c.id}" data-v="${c.vertical_id||''}" ${job.client_id==c.id?'selected':''}>${esc(c.name)} · ${esc(c.type)}${c.status==='prospective'?' (prospective)':''}</option>`).join('');
   const vertOpts=`<option value="">—</option>`+verticals.map(v=>`<option value="${v.id}" ${job.vertical_id==v.id?'selected':''}>${esc(v.name)}</option>`).join('');
@@ -519,6 +573,7 @@ async function jobModal(job){
       <div class="field"><label>Due date</label><input id="j_date" type="date" value="${esc(job.due_date||'')}"></div>
       <div class="field"><label>Delivery date</label><input id="j_deliv" type="date" value="${esc(job.delivery_date||'')}"></div>
       ${isSuper()?`<div class="field"><label>Billing (₹)</label><input id="j_bill" type="number" min="0" step="500" value="${job.billing||0}"></div>`:''}
+      ${cfDefs.length?`<div class="field full cfhdr"><span>Custom fields</span></div>${customFieldsHtml(cfDefs, job.custom)}`:''}
     </div>`,
     isNew?'Add job':'Save', async()=>{
       const body={ref_no:val('j_ref'),client_id:value('j_client')?+value('j_client'):null,
@@ -526,7 +581,7 @@ async function jobModal(job){
         team_ids:Array.from(document.querySelectorAll('.j_team_ck:checked')).map(c=>+c.value),
         brief:val('j_brief'),task:value('j_task'),stage:value('j_stage'),
         workflow_stage_id:value('j_wf')&&value('j_wf')!=='__add'?+value('j_wf'):null,
-        due_date:val('j_date'),delivery_date:val('j_deliv')};
+        due_date:val('j_date'),delivery_date:val('j_deliv'),custom:collectCustom(cfDefs)};
       if(isSuper()) body.billing=+val('j_bill')||0;
       if(isNew) await api('POST','/jobs',body); else await api('PUT','/jobs/'+job.id,body);
       toast(isNew?'Job added':'Job saved'); renderView(); return true;
@@ -1019,13 +1074,114 @@ async function viewPermissions(C){
 }
 
 /* ============================================================
+   View: Data management (super only)
+   ============================================================ */
+async function downloadData(url, fallbackName){
+  try{
+    const res=await fetch('/api'+url,{credentials:'include'});
+    if(!res.ok){ toast('Export failed ('+res.status+')',true); return; }
+    const cd=res.headers.get('Content-Disposition')||'';
+    const m=cd.match(/filename="([^"]+)"/); const name=m?m[1]:fallbackName;
+    const blob=await res.blob(); const href=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=href; a.download=name; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(href);
+  }catch(e){ toast(e.message,true); }
+}
+let dataScope='jobs', dataFmt='csv', dataPeriodKind='all', dataPeriodVal='';
+async function viewData(C){
+  if(!isSuper()){ C.innerHTML=`<div class="card empty">${icon('lock')}<b>Super Admins only</b></div>`; return; }
+  let d; try{ d=await api('GET','/data/summary'); }catch(e){ C.innerHTML=`<div class="empty">${esc(e.message)}</div>`; return; }
+  const order=['jobs','clients','users','timesheet_entries','activity_log','issues','attachments','custom_fields','verticals','teams','departments'];
+  const counts=order.filter(k=>k in d.counts).map(k=>[k,d.counts[k]]);
+  const periodExtra = dataPeriodKind==='year'
+    ? `<select class="sel" id="dpVal">${d.years.map(y=>`<option ${dataPeriodVal===y?'selected':''}>${y}</option>`).join('')||'<option>—</option>'}</select>`
+    : dataPeriodKind==='month'
+    ? `<select class="sel" id="dpVal">${d.months.map(m=>`<option ${dataPeriodVal===m?'selected':''}>${m}</option>`).join('')||'<option>—</option>'}</select>` : '';
+  C.innerHTML=`
+  <div class="note ${d.encrypted?'info':''}" style="margin-bottom:16px">
+    ${icon(d.encrypted?'lock':'eyeoff')} Database encryption at rest is <b>${d.encrypted?'ON (SQLCipher)':'OFF'}</b>.
+    ${d.encrypted?'':'Set <code>DB_ENCRYPTION_KEY</code> and install the cipher module to enable it — see DEPLOY.md.'}
+  </div>
+
+  <div class="datagrid">
+    <div class="card datacard">
+      <div class="dctitle">${icon('database')} What's in the database</div>
+      <div class="counts">${counts.map(([k,v])=>`<div class="countrow"><span>${esc(k.replace(/_/g,' '))}</span><b>${v}</b></div>`).join('')}</div>
+    </div>
+
+    <div class="card datacard">
+      <div class="dctitle">${icon('download')} Export</div>
+      <div class="drow"><span class="dlabel">What</span>
+        <div class="seg"><button class="${dataScope==='jobs'?'on':''}" data-scope="jobs">Jobs dataset</button><button class="${dataScope==='backup'?'on':''}" data-scope="backup">Full backup</button></div></div>
+      ${dataScope==='jobs'?`
+      <div class="drow"><span class="dlabel">Format</span>
+        <div class="seg"><button class="${dataFmt==='csv'?'on':''}" data-fmt="csv">CSV</button><button class="${dataFmt==='json'?'on':''}" data-fmt="json">JSON</button></div></div>
+      <div class="drow"><span class="dlabel">Period</span>
+        <div class="seg"><button class="${dataPeriodKind==='all'?'on':''}" data-dp="all">All</button><button class="${dataPeriodKind==='year'?'on':''}" data-dp="year">Year</button><button class="${dataPeriodKind==='month'?'on':''}" data-dp="month">Month</button></div>
+        ${periodExtra}</div>
+      <div class="hint" style="color:var(--muted);margin:2px 0 10px">Jobs dataset is denormalised (client, teams, billing, cost, profit, hours, custom fields) — opens straight in Excel.</div>`
+      :`<div class="hint" style="color:var(--muted);margin:8px 0 10px">Full backup is a complete JSON snapshot of every table, used for restore. It includes attachments, so it can be large.</div>`}
+      <button class="btn pri" id="dExport">${icon('download')}Download</button>
+    </div>
+
+    <div class="card datacard">
+      <div class="dctitle">${icon('upload')} Restore</div>
+      <div class="hint" style="color:var(--muted);margin-bottom:10px">Upload a <b>full backup</b> JSON to replace the current database. This overwrites everything — export first if unsure.</div>
+      <label class="btn" style="cursor:pointer">${icon('upload')}Choose backup file…<input type="file" id="dRestore" accept="application/json,.json" hidden></label>
+      <div id="dRestoreName" class="hint" style="color:var(--muted);margin-top:8px"></div>
+    </div>
+
+    <div class="card datacard danger-card">
+      <div class="dctitle">${icon('trash')} Reset</div>
+      <div class="hint" style="color:var(--muted);margin-bottom:10px">Wipe operational data. This cannot be undone — take a backup first.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="dSeed">Reset to sample data</button>
+        <button class="btn danger" id="dWipe">${icon('trash')}Wipe everything</button>
+      </div>
+    </div>
+  </div>`;
+
+  C.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{dataScope=b.dataset.scope;renderView();});
+  C.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>{dataFmt=b.dataset.fmt;renderView();});
+  C.querySelectorAll('[data-dp]').forEach(b=>b.onclick=()=>{dataPeriodKind=b.dataset.dp; dataPeriodVal = b.dataset.dp==='year'?(d.years.slice(-1)[0]||''):b.dataset.dp==='month'?(d.months[0]||''):''; renderView();});
+  const dv=document.getElementById('dpVal'); if(dv)dv.onchange=()=>{dataPeriodVal=dv.value;};
+  document.getElementById('dExport').onclick=()=>{
+    if(dataScope==='backup') return downloadData('/data/export?scope=backup&format=json','mw-ops-backup.json');
+    const p=dataPeriodKind!=='all'?`&period=${dataPeriodKind}&date=${encodeURIComponent(dataPeriodVal)}`:'';
+    downloadData(`/data/export?scope=jobs&format=${dataFmt}${p}`,'mw-ops-jobs.'+dataFmt);
+  };
+  const rf=document.getElementById('dRestore');
+  if(rf)rf.onchange=async()=>{
+    const f=rf.files[0]; if(!f)return;
+    document.getElementById('dRestoreName').textContent=f.name+' ('+fmtSize(f.size)+')';
+    if(!confirm(`Restore from "${f.name}"?\n\nThis REPLACES the entire current database. Everyone (including you) may be signed out. Continue?`)){ rf.value=''; return; }
+    try{
+      const text=await f.text(); const json=JSON.parse(text);
+      const r=await api('POST','/data/restore',json);
+      toast('Restored — '+r.users+' users. Reloading…'); setTimeout(()=>location.reload(),900);
+    }catch(e){ toast('Restore failed: '+e.message,true); }
+  };
+  document.getElementById('dSeed').onclick=async()=>{
+    if(!confirm('Wipe all current data and replace it with the sample/demo dataset? This cannot be undone.'))return;
+    try{ await api('POST','/data/reset',{mode:'seed'}); toast('Reset to sample data. Reloading…'); setTimeout(()=>location.reload(),800);}catch(e){toast(e.message,true);}
+  };
+  document.getElementById('dWipe').onclick=async()=>{
+    if(!confirm('WIPE EVERYTHING — all jobs, clients, users, timesheets and history? This cannot be undone.'))return;
+    if(!confirm('Are you absolutely sure? You will be signed out and the app will have no accounts until restored.'))return;
+    try{ await api('POST','/data/reset',{mode:'empty'}); toast('All data wiped. Reloading…'); setTimeout(()=>location.reload(),800);}catch(e){toast(e.message,true);}
+  };
+}
+
+/* ============================================================
    View: Masters (backend) — tabbed
    ============================================================ */
 let mTab='verticals';
-const MTABS=[['verticals','Verticals'],['teams','Teams'],['departments','Departments'],['clients','Clients'],['stages','Workflow stages']];
+const MTABS=[['verticals','Verticals'],['teams','Teams'],['departments','Departments'],['clients','Clients'],['stages','Workflow stages'],['fields','Custom fields']];
 function reMasters(){ viewMasters(document.getElementById('content')); }
 async function viewMasters(C){
-  C.innerHTML=`<div class="mtabs">${MTABS.map(t=>`<button class="${mTab===t[0]?'on':''}" data-mt="${t[0]}">${esc(t[1])}</button>`).join('')}</div>
+  const tabs=MTABS.filter(t=>t[0]!=='fields'||isSuper());
+  if(mTab==='fields'&&!isSuper())mTab='verticals';
+  C.innerHTML=`<div class="mtabs">${tabs.map(t=>`<button class="${mTab===t[0]?'on':''}" data-mt="${t[0]}">${esc(t[1])}</button>`).join('')}</div>
     <div id="mhost"><div style="padding:34px;text-align:center"><span class="spin"></span></div></div>`;
   C.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>{mTab=b.dataset.mt; viewMasters(C);});
   const host=document.getElementById('mhost');
@@ -1034,8 +1190,49 @@ async function viewMasters(C){
     else if(mTab==='teams') await mastersTeams(host);
     else if(mTab==='departments') await mastersDepartments(host);
     else if(mTab==='stages') await mastersStages(host);
+    else if(mTab==='fields') await mastersFields(host);
     else await mastersClients(host);
   }catch(e){ host.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+}
+
+const CF_ENTITY_LABEL={job:'Jobs',client:'Clients'};
+let cfEntity='job';
+async function mastersFields(host){
+  const fields=await api('GET','/custom-fields?entity='+cfEntity+'&all=1');
+  host.innerHTML=`<div class="filters" style="justify-content:space-between">
+    <div class="seg">${Object.entries(CF_ENTITY_LABEL).map(([k,v])=>`<button class="${cfEntity===k?'on':''}" data-cfe="${k}">${v}</button>`).join('')}</div>
+    <button class="btn pri" id="addCF">${icon('plus')}Add field</button></div>
+  <div class="hint" style="color:var(--muted);margin:-4px 2px 12px">Fields you add here appear on the ${cfEntity==='job'?'job':'client'} form. Renaming a field keeps existing data; removing it deletes that field's stored values.</div>
+  <div class="card" style="overflow:hidden"><table class="dtable">
+    <thead><tr><th>Field</th><th>Type</th><th>Options</th><th class="r">Status</th><th></th></tr></thead>
+    <tbody>${fields.map(f=>`<tr class="${f.active?'':'inactive-row'}">
+      <td style="font-weight:600">${esc(f.label)}<div style="color:var(--muted);font-size:11px;font-family:'JetBrains Mono'">${esc(f.field_key)}</div></td>
+      <td>${esc(f.type)}</td><td style="color:var(--ink2)">${esc(f.options||'—')}</td>
+      <td class="r">${f.active?'<span class="pill on">active</span>':'<span class="pill">hidden</span>'}</td>
+      <td><div class="rowact">
+        <button class="icon-btn" data-cftoggle="${f.id}" data-act="${f.active?0:1}" title="${f.active?'Hide':'Show'}">${icon(f.active?'eyeoff':'eye')}</button>
+        <button class="icon-btn" data-cfedit="${f.id}" title="Rename / edit">${icon('edit')}</button>
+        <button class="icon-btn" data-cfdel="${f.id}" title="Remove">${icon('trash')}</button>
+      </div></td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No custom fields yet.</td></tr>`}</tbody>
+  </table></div>`;
+  host.querySelectorAll('[data-cfe]').forEach(b=>b.onclick=()=>{cfEntity=b.dataset.cfe; reMasters();});
+  host.querySelectorAll('[data-cftoggle]').forEach(b=>b.onclick=async()=>{try{await api('PUT','/custom-fields/'+b.dataset.cftoggle,{active:b.dataset.act==='1'}); reMasters();}catch(e){toast(e.message,true);}});
+  host.querySelectorAll('[data-cfdel]').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this field and all its stored values? This cannot be undone.'))return; try{await api('DELETE','/custom-fields/'+b.dataset.cfdel); toast('Field removed'); reMasters();}catch(e){toast(e.message,true);}});
+  host.querySelectorAll('[data-cfedit]').forEach(b=>b.onclick=()=>{const f=fields.find(x=>x.id==b.dataset.cfedit); cfFormModal(f);});
+  document.getElementById('addCF').onclick=()=>cfFormModal(null);
+}
+function cfFormModal(f){
+  const types=['text','textarea','number','date','select'];
+  modal(f?'Edit field':'Add field for '+CF_ENTITY_LABEL[cfEntity], `
+    <div class="field full"><label>Field name</label><input id="cf_label" value="${f?esc(f.label):''}" placeholder="e.g. PO Number"></div>
+    <div class="field"><label>Type</label><select id="cf_type">${types.map(t=>`<option ${f&&f.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="field full"><label>Options <span class="help">for “select”, comma-separated</span></label><input id="cf_opts" value="${f?esc(f.options||''):''}" placeholder="Low, Medium, High"></div>`,
+    f?'Save':'Add', async()=>{
+      const label=val('cf_label'); if(!label)return true;
+      const body={label,type:value('cf_type'),options:val('cf_opts')};
+      try{ if(f) await api('PUT','/custom-fields/'+f.id,body); else await api('POST','/custom-fields',{entity:cfEntity,...body});
+        toast('Saved'); reMasters(); return true; }catch(e){ toast(e.message,true); return true; }
+    });
 }
 
 async function mastersVerticals(host){
@@ -1155,7 +1352,7 @@ async function mastersDepartments(host){
 }
 
 async function mastersClients(host){
-  const [cls,vs]=await Promise.all([masters('clients',true),masters('verticals')]);
+  const [cls,vs,cfDefs]=await Promise.all([masters('clients',true),masters('verticals'),customDefs('client')]);
   const sup=isSuper(), canSet=isBackend();
   host.innerHTML=`<div class="filters" style="justify-content:flex-end"><button class="btn pri" id="addC">${icon('plus')}Add client</button></div>
   <div class="card" style="overflow:hidden"><table class="dtable">
@@ -1177,8 +1374,9 @@ async function mastersClients(host){
         <div class="field"><label>Status</label><select id="c_status"><option value="converted" ${c.status==='converted'?'selected':''}>Converted</option><option value="prospective" ${c.status==='prospective'?'selected':''}>Prospective</option></select></div>
         <div class="field"><label>Vertical</label><select id="c_vert"><option value="">—</option>${vs.map(v=>`<option value="${v.id}" ${c.vertical_id==v.id?'selected':''}>${esc(v.name)}</option>`).join('')}</select></div>
         ${canSet?`<div class="field full"><label>Retainer cost ₹/mo ${sup?'':'<span class="help">write-only — only super admins can view it back</span>'}</label><input id="c_ret" type="number" min="0" step="1000" value="${sup?(c.retainer_cost||0):''}" placeholder="for retainership clients"></div>`:''}
+        ${cfDefs.length?`<div class="field full cfhdr"><span>Custom fields</span></div>${customFieldsHtml(cfDefs, c.custom)}`:''}
       </div>`,isNew?'Add':'Save',async()=>{
-        const body={name:val('c_name'),type:value('c_type'),status:value('c_status'),vertical_id:value('c_vert')?+value('c_vert'):null};
+        const body={name:val('c_name'),type:value('c_type'),status:value('c_status'),vertical_id:value('c_vert')?+value('c_vert'):null,custom:collectCustom(cfDefs)};
         if(canSet){ const r=document.getElementById('c_ret'); if(r && r.value!=='') body.retainer_cost=+r.value; }
         if(isNew) await api('POST','/masters/clients',body); else await api('PUT','/masters/clients/'+c.id,body);
         toast('Saved'); reMasters(); return true;
@@ -1357,6 +1555,8 @@ function icon(n){
     hash:'<path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/>',
     download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
     gauge:'<path d="M12 14l4-4"/><path d="M3.5 18a9 9 0 1 1 17 0"/><circle cx="12" cy="14" r="1.5"/>',
+    database:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+    upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
   }[n]||'';
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I}</svg>`;
 }

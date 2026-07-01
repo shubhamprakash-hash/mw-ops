@@ -163,14 +163,41 @@ For an always-on service Railway runs about $5/month; its free credit isn't enou
 | `SEED_PASSWORD` | First-run password for seeded accounts | `changeme123` |
 | `DATA_DIR` | Folder holding the database file | the app's `data/` folder |
 | `NODE_ENV` | `production` enables secure (HTTPS-only) cookies — use on Routes B/C, **not** on a plain-HTTP office machine | `development` |
+| `DB_ENCRYPTION_KEY` | If set, encrypts the whole database at rest (SQLCipher). Keep it safe — see the encryption section | unset (unencrypted) |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_SECURE` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | Optional mail server for the Super-Admin "reset by email" code. If unset, the code is logged to the server console | unset (code logged) |
 
 ---
 
+## Data management (Super Admins)
+
+The **Data** section (Super Admins only) is a self-serve console for the whole dataset:
+
+- **Export** — download the jobs dataset as **CSV or JSON**, filtered by **all time, a year, or a month**; or take a **full backup** (a complete JSON snapshot of every table, used for restore).
+- **Restore** — upload a previously downloaded full backup to replace the current database (wrapped in a transaction; it rolls back if the file is malformed).
+- **Reset** — wipe to the sample/demo dataset, or wipe everything to an empty database.
+
+Take a full backup before any restore or reset — these overwrite data and can't be undone.
+
+## Custom fields (Super Admins)
+
+Under **Masters → Custom fields**, Super Admins can **add**, **rename**, hide, or **remove** fields on jobs and clients (text, number, date, select, or long-text). Added fields appear on the relevant form immediately and flow into exports. Renaming keeps existing data (the underlying key never changes); removing a field deletes its stored values.
+
+## Database encryption at rest (optional)
+
+By default the database file is unencrypted. To encrypt the **entire** database transparently — so reports, sums, and date filters keep working unchanged — set **`DB_ENCRYPTION_KEY`** to a long secret. The app then opens the file with SQLCipher via the optional `better-sqlite3-multiple-ciphers` module (bundled as an optional dependency; it installs automatically when it can build).
+
+Important cautions:
+
+- **Guard the key.** Without it the database cannot be opened. Store it in your host's secret manager, not in the repo.
+- **The key can't be changed on an existing file.** To rotate it: export a full backup, set the new key on an empty database (reset), then restore.
+- If the key is set but the cipher module isn't available, the app logs a clear warning and runs **unencrypted** rather than failing — check the startup log to confirm encryption is `ON`.
+
 ## Resetting a forgotten password
 
-There's no self-service "forgot password" flow — password resets are an admin action, which keeps the login screen simple and avoids needing a mail server.
+Two paths, no self-service reset for ordinary accounts:
 
-When someone forgets their password, a **Super Admin or Admin** opens **Users**, clicks the key icon next to that person, and the app issues a fresh temporary password to hand over. The person is prompted to set their own password the next time they sign in. That's the whole process; no email configuration is required.
+- **Anyone** — a Super Admin or Admin opens **Users**, clicks the key icon, and hands over the temporary password the app generates. The person sets their own at next sign-in. No email needed.
+- **Super Admins** — can self-serve from the login screen via **"reset by email."** The app emails a **6-digit code** (valid 15 minutes) to the Super Admin's address; they enter it with a new password. If SMTP isn't configured, the code is written to the server log instead, so the flow still works everywhere. Configure the `SMTP_*` variables to send real email.
 
 ---
 
@@ -225,7 +252,7 @@ For true single sign-on — where people click "Sign in with Google/Microsoft" a
 - **Login succeeds then immediately returns to the sign-in screen** — you've set `NODE_ENV=production` while serving over plain `http://` (typically a Route A office machine). Secure cookies require HTTPS; unset `NODE_ENV` (or use a host that provides HTTPS) and try again.
 - **"ExperimentalWarning: SQLite is an experimental feature"** — harmless. It just means better-sqlite3 didn't compile on this machine and the app is using Node's built-in SQLite instead. Everything works; the data format is identical. To silence it, install build tools so better-sqlite3 can compile, or ignore it.
 - **Login says "Use your office email"** — the email doesn't end in `@monkeywrench.in`. Change `OFFICE_DOMAIN` if your real domain differs, then re-seed.
-- **Someone forgot their password** — a Super Admin or Admin resets it from **Users** (the key icon), which issues a temporary password. There's no self-service email reset.
+- **Someone forgot their password** — a Super Admin or Admin resets it from **Users** (the key icon). Super Admins can also self-serve via **"reset by email"** on the login screen (a 6-digit code, emailed or logged if SMTP is unset).
 - **Data disappeared after a redeploy (cloud)** — the persistent disk/volume isn't attached, or `DATA_DIR` doesn't match the mount path. Both must point to the same folder.
 - **Teammates can't reach the office machine** — they must be on the same network, the machine's firewall must allow the port, and you must use the machine's IP, not `localhost`.
 - **Node version errors / won't start on an old Node** — install **Node 22 or newer**; the built-in database fallback needs 22.5+.

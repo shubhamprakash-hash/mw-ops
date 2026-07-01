@@ -97,6 +97,26 @@ function logActivity({ actor, entity_type, entity_id = null, job_id = null, acti
     entity_id, job_id, action, String(field), String(old_value), String(new_value), String(note));
 }
 
+/* ---------- user-defined custom fields ---------- */
+function customFieldDefs(entity) {
+  return db.prepare('SELECT * FROM custom_fields WHERE entity=? AND active=1 ORDER BY position, id').all(entity);
+}
+function customValues(entity, recordId) {
+  const out = {};
+  db.prepare(`SELECT f.field_key, v.value FROM custom_fields f
+    LEFT JOIN custom_field_values v ON v.field_id=f.id AND v.record_id=?
+    WHERE f.entity=? AND f.active=1 ORDER BY f.position, f.id`).all(recordId, entity)
+    .forEach(r => out[r.field_key] = (r.value == null ? '' : r.value));
+  return out;
+}
+function setCustomValues(entity, recordId, custom) {
+  if (!custom || typeof custom !== 'object') return;
+  const defs = db.prepare('SELECT id, field_key FROM custom_fields WHERE entity=? AND active=1').all(entity);
+  const up = db.prepare(`INSERT INTO custom_field_values (field_id,entity,record_id,value) VALUES (?,?,?,?)
+    ON CONFLICT(field_id,record_id) DO UPDATE SET value=excluded.value`);
+  defs.forEach(d => { if (Object.prototype.hasOwnProperty.call(custom, d.field_key)) up.run(d.id, entity, recordId, String(custom[d.field_key] ?? '')); });
+}
+
 function serializeJob(job, viewer) {
   const teams = jobTeams(job.id);
   const out = {
@@ -114,6 +134,7 @@ function serializeJob(job, viewer) {
     attachments: countWhere('attachments', job.id),
     brief_versions: countWhere('brief_versions', job.id),
     open_issues: db.prepare("SELECT COUNT(*) n FROM issues WHERE job_id = ? AND status = 'open'").get(job.id).n,
+    custom: customValues('job', job.id),
   };
   if (canSeeMoney(viewer)) {
     const cost = jobCost(job.id);
@@ -128,4 +149,5 @@ function serializeJob(job, viewer) {
 module.exports = { costRateOn, currentRate, jobCost, jobHours, assigneesOf,
   teamsLedBy, teamNamesLedBy, teamsOf, memberIdsOfLeadTeams, serializeJob,
   jobTeams, jobTeamIds, jobTeamNames, logActivity,
+  customFieldDefs, customValues, setCustomValues,
   formatJobNo, nextJobNumber, notify, usersByRole };

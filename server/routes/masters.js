@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { db, isSuper, canSetRetainerCost } = require('../db');
+const { customValues, setCustomValues } = require('../helpers');
 
 const inUse = (table, col, id) => db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE ${col}=?`).get(id).n > 0;
 
@@ -119,7 +120,7 @@ router.get('/clients', (req, res) => {
   const rows = db.prepare(`SELECT c.*, v.name AS vertical,
     (SELECT COUNT(*) FROM jobs WHERE client_id=c.id) AS jobs
     FROM clients c LEFT JOIN verticals v ON v.id=c.vertical_id ORDER BY c.name`).all();
-  res.json(rows.map(c => clientOut(c, req.user.role)));
+  res.json(rows.map(c => ({ ...clientOut(c, req.user.role), custom: customValues('client', c.id) })));
 });
 router.post('/clients', (req, res) => {
   const b = req.body || {};
@@ -129,6 +130,7 @@ router.post('/clients', (req, res) => {
   const retainer = canSetRetainerCost(req.user.role) ? Math.max(0, parseInt(b.retainer_cost) || 0) : 0;
   const r = db.prepare('INSERT INTO clients (name,type,vertical_id,status,retainer_cost,created_by) VALUES (?,?,?,?,?,?)')
     .run(b.name.trim(), type, b.vertical_id || null, status, retainer, req.user.id);
+  setCustomValues('client', r.lastInsertRowid, b.custom);
   res.json({ id: r.lastInsertRowid });
 });
 router.put('/clients/:id', (req, res) => {
@@ -138,6 +140,7 @@ router.put('/clients/:id', (req, res) => {
   // retainer cost: writable by admin+super (assigning is allowed), even though viewing reports is super-only
   if ('retainer_cost' in b && canSetRetainerCost(req.user.role)) { sets.push('retainer_cost=?'); vals.push(Math.max(0, parseInt(b.retainer_cost) || 0)); }
   if (sets.length) { vals.push(req.params.id); db.prepare(`UPDATE clients SET ${sets.join(',')} WHERE id=?`).run(...vals); }
+  if (b.custom) setCustomValues('client', +req.params.id, b.custom);
   res.json({ ok: true });
 });
 router.delete('/clients/:id', (req, res) => {

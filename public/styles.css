@@ -408,3 +408,23 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 .permcell.isgrant{border-color:#A9D8B8;background:var(--green-soft)} .permcell.isgrant .permsrc{color:var(--green2)}
 .permcell.isrevoke{border-color:#E7B4B4;background:var(--red-soft)} .permcell.isrevoke .permsrc{color:var(--red)}
 .permcell.isdef .permsrc{color:var(--muted)}
+
+/* ============================================================
+   Phase 5 — data management, custom fields
+   ============================================================ */
+.datagrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start}
+.datacard{padding:18px}
+.dctitle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px}
+.dctitle svg{width:17px;height:17px;color:var(--ink2)}
+.counts{display:flex;flex-direction:column;gap:1px}
+.countrow{display:flex;justify-content:space-between;align-items:center;padding:6px 2px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink2)}
+.countrow:last-child{border-bottom:none}
+.countrow b{font-family:'JetBrains Mono';color:var(--ink)}
+.drow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:11px}
+.dlabel{font-size:12px;font-weight:600;color:var(--ink2);width:56px;flex:none}
+.danger-card{border-color:#EAD3D3;background:linear-gradient(180deg,#fff, #FDF6F6)}
+.pill{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:20px;background:var(--surface2);color:var(--muted)}
+.pill.on{background:var(--green-soft);color:var(--green2)}
+.inactive-row{opacity:.55}
+.cfhdr{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+.cfhdr span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}

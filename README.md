@@ -26,6 +26,10 @@ Version 2.0 adds the **Masters** layer (business verticals, teams, departments, 
 - **Activity log (audit trail)** — an immutable, append-only record of who did what and when, across job creation, edits, assignments, stage and round changes, submissions, approvals, sub-tasks, attachments and issues. It's filterable by person, action and date, and each job has its own activity timeline.
 - **Granular permissions** — roles carry sensible defaults, and a Super Admin can additionally **grant** a capability to a specific person (for example, give one trusted admin financial visibility) or **revoke** a default — per person, from a single screen.
 - **Admin-managed password resets** — a Super Admin or Admin issues a temporary password from Users; the person changes it at next sign-in. Everyone must change the seeded default on first login.
+- **Super-Admin reset by email** — a Super Admin who's locked out can request a **6-digit code** from the login screen; it's emailed (or logged, if SMTP isn't set) and used with a new password. Valid 15 minutes, single-use.
+- **Data management (Super-Admin)** — export the jobs dataset as **CSV or JSON**, filtered by **all / year / month**; take a **full JSON backup**; **restore** from a backup; or **reset** to sample data or empty. A live count of every table is shown.
+- **Custom fields (Super-Admin)** — under Masters, **add / rename / hide / remove** fields (text, number, date, select, long-text) on **jobs and clients**. New fields appear on the form at once and flow into exports; renaming preserves data.
+- **Database encryption at rest (optional)** — set `DB_ENCRYPTION_KEY` to encrypt the whole database transparently with SQLCipher; reports and filters keep working. Falls back to unencrypted (with a clear log line) if the key or cipher module is absent.
 - **Presentation mode** — a Super Admin can toggle all monetary figures off-screen for screen-shares and demos.
 
 ---
@@ -103,7 +107,9 @@ To walk a job all the way to **Approved**, sign in as `saddam@` (lead queue) →
 
 **Dated cost rates (historical integrity).** A person's cost rate is a list of `(rate, effective_from)` records, not a single number. The cost of a job is the sum, over its timesheet entries, of `hours × the rate that was effective on that entry's work date`. Raising someone's rate adds a new dated record and leaves every past calculation untouched — so historical P&L never silently shifts. Rates and their history are visible to Super Admins only, under **Backend · Users**.
 
-**Password resets.** There's no self-service reset flow. When someone forgets their password, a Super Admin or Admin resets it from **Backend · Users** (the key icon), which issues a temporary password to hand over; the person sets their own password at their next sign-in.
+**Password resets.** No self-service reset for ordinary accounts — a Super Admin or Admin resets anyone from **Backend · Users** (the key icon), which issues a temporary password; the person sets their own at next sign-in. **Super Admins** additionally have a **"reset by email"** link on the login screen that sends a 6-digit code (valid 15 minutes) to their address — configure `SMTP_*` to send real email, otherwise the code is written to the server log.
+
+**Database encryption.** Set `DB_ENCRYPTION_KEY` to a long secret to encrypt the entire database file at rest (SQLCipher, via the optional `better-sqlite3-multiple-ciphers` module). It's transparent — every query, sum and date filter works unchanged. The key can't be changed on an existing file; to rotate it, export a backup from **Data**, reset with the new key, then restore. Left unset, the app runs unencrypted.
 
 ---
 
@@ -133,20 +139,23 @@ mw-ops/
 ├── server/
 │   ├── index.js          Express app + auth/public endpoints + static serving
 │   ├── db.js             Schema, roles/workflow constants, seed data
-│   ├── sqlite.js         DB driver adapter (better-sqlite3 → node:sqlite fallback)
-│   ├── auth.js           Login, JWT, password change
+│   ├── sqlite.js         DB driver adapter (SQLCipher if keyed → better-sqlite3 → node:sqlite)
+│   ├── auth.js           Login, JWT, password change, Super-Admin emailed-code reset
+│   ├── mailer.js         Optional SMTP send for the reset code (logs it if SMTP unset)
 │   ├── middleware.js     requireAuth / requireBackend / requireSuper / requireCap / timesheet gate
-│   ├── helpers.js        Job serialization (hides money by role), dated-rate cost math
+│   ├── helpers.js        Job serialization (hides money by role), dated-rate cost math, custom-field values
 │   └── routes/
 │       ├── jobs.js        Board, my-jobs (gated), assign, submit, rounds, sub-tasks, attachments, brief versions, multi-team
 │       ├── timesheets.js  Log time, submit-day, gate status
 │       ├── approvals.js   Role-filtered queue + approve/reject
 │       ├── people.js      Assignable members (no rates exposed)
 │       ├── issues.js      Issue / blocker tracking per job                          [auth]
+│       ├── customfields.js Add/rename/remove custom fields; read for forms          [read: auth, write: super]
 │       ├── masters.js     Verticals, teams, departments, clients, workflow stages    [manage_masters]
 │       ├── notifications.js The notification bell feed                              [auth]
 │       ├── activity.js    The immutable audit trail (filterable)                    [view_activity]
 │       ├── permissions.js Per-user capability grants                                [super only]
+│       ├── data.js        Export / backup / restore / reset                        [super only]
 │       ├── users.js       Users CRUD + dated rates & history                       [manage_users]
 │       └── finance.js     Dashboard, P&L, team bandwidth, year-on-year (period-aware) [view_finance]
 ├── public/               Front-end SPA (index.html, app.js, styles.css)

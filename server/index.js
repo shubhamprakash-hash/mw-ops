@@ -10,7 +10,7 @@ const auth = require('./auth');
 const { requireAuth, requireBackend, requireSuper, requireCap } = require('./middleware');
 
 const app = express();
-app.use(express.json({ limit: '15mb' })); // larger limit accommodates base64 file attachments
+app.use(express.json({ limit: '64mb' })); // large limit accommodates base64 attachments + full-backup restore
 app.use(cookieParser());
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -29,6 +29,18 @@ app.post('/api/login', (req, res) => {
 });
 app.post('/api/logout', (req, res) => { res.clearCookie('mw_token'); res.json({ ok: true }); });
 
+// Super-Admin self-service reset via emailed 6-digit code
+app.post('/api/super-reset/request', async (req, res) => {
+  await auth.requestSuperReset((req.body || {}).email);
+  res.json({ ok: true }); // always generic (don't reveal which emails are super admins)
+});
+app.post('/api/super-reset/confirm', (req, res) => {
+  const { email, code, new_password } = req.body || {};
+  const r = auth.confirmSuperReset(email, code, new_password);
+  if (r.error) return res.status(400).json(r);
+  res.json({ ok: true });
+});
+
 /* ---------- authenticated ---------- */
 app.get('/api/me', requireAuth, (req, res) => res.json({ user: auth.publicUser(req.user) }));
 app.post('/api/change-password', requireAuth, (req, res) => {
@@ -44,13 +56,15 @@ app.use('/api/approvals', requireAuth, require('./routes/approvals'));
 app.use('/api/people', requireAuth, require('./routes/people'));
 app.use('/api/notifications', requireAuth, require('./routes/notifications'));
 app.use('/api/issues', requireAuth, require('./routes/issues'));
+app.use('/api/custom-fields', requireAuth, require('./routes/customfields'));
 // capability-gated (role defaults + per-user grants)
 app.use('/api/masters', requireAuth, requireCap('manage_masters'), require('./routes/masters'));
 app.use('/api/users', requireAuth, requireCap('manage_users'), require('./routes/users'));
 app.use('/api/activity', requireAuth, requireCap('view_activity'), require('./routes/activity'));
 app.use('/api/finance', requireAuth, requireCap('view_finance'), require('./routes/finance'));
-// permissions administration (super only)
+// permissions administration + data management (super only)
 app.use('/api/permissions', requireAuth, requireSuper, require('./routes/permissions'));
+app.use('/api/data', requireAuth, requireSuper, require('./routes/data'));
 
 /* ---------- static frontend ---------- */
 app.use(express.static(path.join(__dirname, '..', 'public')));

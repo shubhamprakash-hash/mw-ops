@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { db, isBackend, STAGES } = require('../db');
 const { requireBackend, requireRole, gateJobList } = require('../middleware');
-const { serializeJob, teamNamesLedBy, jobTeamNames, jobTeamIds, nextJobNumber, formatJobNo, notify, logActivity } = require('../helpers');
+const { serializeJob, teamNamesLedBy, jobTeamNames, jobTeamIds, nextJobNumber, formatJobNo, notify, logActivity, setCustomValues } = require('../helpers');
 
 const getJob = id => db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -100,6 +100,7 @@ router.post('/', requireBackend, (req, res) => {
     b.brief || '', billing, today(), b.due_date || '', b.delivery_date || '', req.user.id);
   const id = r.lastInsertRowid;
   setJobTeams(id, teamIds);
+  setCustomValues('job', id, b.custom);
   if ((b.brief || '').trim())
     db.prepare('INSERT INTO brief_versions (job_id,brief,edited_by) VALUES (?,?,?)').run(id, b.brief, req.user.id);
   logActivity({ actor: req.user, entity_type: 'job', entity_id: id, job_id: id, action: 'created',
@@ -131,6 +132,7 @@ router.put('/:id', requireRole('super_admin', 'admin', 'team_lead'), (req, res) 
     changed.push('teams');
   }
   if (sets.length) { vals.push(job.id); db.prepare(`UPDATE jobs SET ${sets.join(',')} WHERE id=?`).run(...vals); }
+  if (b.custom) { setCustomValues('job', job.id, b.custom); if (!changed.includes('custom fields')) changed.push('custom fields'); }
   if (changed.length)
     logActivity({ actor: req.user, entity_type: 'job', entity_id: job.id, job_id: job.id, action: 'updated',
       field: changed.join(', '), note: job.job_no });
