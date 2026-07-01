@@ -3,17 +3,22 @@
    ============================================================ */
 const express = require('express');
 const router = express.Router();
-const { db, isAdmin } = require('../db');
+const { db, isBackend } = require('../db');
 const { requireRole } = require('../middleware');
+const { memberIdsOfLeadTeams } = require('../helpers');
 
-// Team leads see their own team; admins see everyone. Used for assignment dropdowns.
 router.get('/', requireRole('super_admin', 'admin', 'team_lead'), (req, res) => {
   let rows;
-  if (isAdmin(req.user.role)) {
-    rows = db.prepare(`SELECT id,name,team,job_role,role FROM users WHERE active=1 ORDER BY team,name`).all();
+  if (isBackend(req.user.role)) {
+    rows = db.prepare(`SELECT u.id,u.name,u.job_role,u.role,
+      (SELECT GROUP_CONCAT(t.name,', ') FROM team_members tm JOIN teams t ON t.id=tm.team_id WHERE tm.user_id=u.id) AS teams
+      FROM users u WHERE u.active=1 ORDER BY u.name`).all();
   } else {
-    rows = db.prepare(`SELECT id,name,team,job_role,role FROM users
-      WHERE active=1 AND team=? ORDER BY name`).all(req.user.team);
+    const ids = memberIdsOfLeadTeams(req.user.id);
+    if (!ids.length) return res.json([]);
+    rows = db.prepare(`SELECT u.id,u.name,u.job_role,u.role,
+      (SELECT GROUP_CONCAT(t.name,', ') FROM team_members tm JOIN teams t ON t.id=tm.team_id WHERE tm.user_id=u.id) AS teams
+      FROM users u WHERE u.active=1 AND u.id IN (${ids.map(() => '?').join(',')}) ORDER BY u.name`).all(...ids);
   }
   res.json(rows); // intentionally no rate field
 });

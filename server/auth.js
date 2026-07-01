@@ -3,24 +3,29 @@
    ============================================================ */
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { db, OFFICE_DOMAIN } = require('./db');
+const { db, OFFICE_DOMAIN, capabilitiesOf } = require('./db');
+const { teamsOf } = require('./helpers');
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me-in-production';
 const TOKEN_TTL = '12h';
 
 function publicUser(u) {
   if (!u) return null;
-  return { id: u.id, email: u.email, name: u.name, role: u.role, team: u.team,
-    job_role: u.job_role, manager_id: u.manager_id, must_change_pw: !!u.must_change_pw };
+  const dept = u.department_id
+    ? db.prepare('SELECT name FROM departments WHERE id = ?').get(u.department_id) : null;
+  const caps = capabilitiesOf(u);
+  return {
+    id: u.id, email: u.email, name: u.name, role: u.role, job_role: u.job_role,
+    department_id: u.department_id, department: dept ? dept.name : null,
+    reports_to: u.reports_to, teams: teamsOf(u.id).map(t => t.name),
+    capabilities: [...caps],
+    can_see_money: caps.has('view_finance'),
+    must_change_pw: !!u.must_change_pw,
+  };
 }
 
-function issueToken(u) {
-  return jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: TOKEN_TTL });
-}
-
-function verifyToken(token) {
-  try { return jwt.verify(token, SECRET); } catch { return null; }
-}
+const issueToken = u => jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: TOKEN_TTL });
+function verifyToken(token) { try { return jwt.verify(token, SECRET); } catch { return null; } }
 
 function login(email, password) {
   email = String(email || '').trim().toLowerCase();

@@ -3,84 +3,88 @@
    ============================================================ */
 const express = require('express');
 const router = express.Router();
-const { db, isAdmin, LEVEL_FOR_ROLE, NEXT_APPROVAL } = require('../db');
-const { serializeJob } = require('../helpers');
+const { db, LEVEL_FOR_ROLE, NEXT_APPROVAL } = require('../db');
+const { serializeJob, teamNamesLedBy, jobTeamNames, notify, usersByRole, logActivity } = require('../helpers');
 
 const LEVEL_NAME = { team_lead: 'lead', admin: 'admin', super_admin: 'super' };
+const assigneeIds = jobId =>
+  db.prepare('SELECT user_id FROM job_assignments WHERE job_id=?').all(jobId).map(r => r.user_id);
+const leadOnJob = (userId, jobId) => {
+  const led = teamNamesLedBy(userId);
+  return jobTeamNames(jobId).some(n => led.includes(n));
+};
 
-/* The queue this user is responsible for, at their stage of the chain. */
-router.get('/queue', (req, res) => {
-  const stage = LEVEL_FOR_ROLE[req.user.role];
-  if (!stage) return res.json([]); // members have no queue
-  let rows;
-  if (req.user.role === 'team_lead') {
-    rows = db.prepare(`SELECT * FROM jobs WHERE approval_stage=? AND team=? ORDER BY id`)
-      .all(stage, req.user.team);
-  } else {
-    rows = db.prepare(`SELECT * FROM jobs WHERE approval_stage=? ORDER BY id`).all(stage);
+function queueRows(user) {
+  const stage = LEVEL_FOR_ROLE[user.role];
+  if (!stage) return [];
+  if (user.role === 'team_lead') {
+    return db.prepare(`SELECT DISTINCT j.* FROM jobs j
+      JOIN job_teams jt ON jt.job_id=j.id JOIN teams t ON t.id=jt.team_id
+      WHERE j.approval_stage=? AND t.lead_id=? ORDER BY j.id`).all(stage, user.id);
   }
-  res.json(rows.map(j => {
-    const out = serializeJob(j, req.user.role);
-    out.timesheet = db.prepare(`
-      SELECT t.hours, t.work_date, t.note, u.name FROM timesheet_entries t
+  return db.prepare('SELECT * FROM jobs WHERE approval_stage=? ORDER BY id').all(stage);
+}
+
+router.get('/queue', (req, res) => {
+  res.json(queueRows(req.user).map(j => {
+    const out = serializeJob(j, req.user);
+    out.timesheet = db.prepare(`SELECT t.hours, t.work_date, t.note, u.name FROM timesheet_entries t
       JOIN users u ON u.id=t.user_id WHERE t.job_id=? ORDER BY t.work_date`).all(j.id);
     return out;
   }));
 });
 
-/* How many items are waiting on me (for the nav badge). */
-router.get('/count', (req, res) => {
-  const stage = LEVEL_FOR_ROLE[req.user.role];
-  if (!stage) return res.json({ count: 0 });
-  const q = req.user.role === 'team_lead'
-    ? db.prepare('SELECT COUNT(*) n FROM jobs WHERE approval_stage=? AND team=?').get(stage, req.user.team)
-    : db.prepare('SELECT COUNT(*) n FROM jobs WHERE approval_stage=?').get(stage);
-  res.json({ count: q.n });
-});
+router.get('/count', (req, res) => res.json({ count: queueRows(req.user).length }));
 
-/* Approve — advance to the next level (or fully Approved at super). */
-router.post('/:id/approve', (req, res) => {
+function actGuard(req, res) {
   const stage = LEVEL_FOR_ROLE[req.user.role];
-  if (!stage) return res.status(403).json({ error: 'You cannot approve.' });
+  if (!stage) { res.status(403).json({ error: 'You cannot act on approvals.' }); return null; }
   const job = db.prepare('SELECT * FROM jobs WHERE id=?').get(req.params.id);
-  if (!job) return res.status(404).json({ error: 'Job not found.' });
-  if (job.approval_stage !== stage)
-    return res.status(409).json({ error: 'This job is not at your approval stage.' });
-  if (req.user.role === 'team_lead' && job.team !== req.user.team)
-    return res.status(403).json({ error: "Not your team's job." });
+  if (!job) { res.status(404).json({ error: 'Job not found.' }); return null; }
+  if (job.approval_stage !== stage) { res.status(409).json({ error: 'This job is not at your approval stage.' }); return null; }
+  if (req.user.role === 'team_lead' && !leadOnJob(req.user.id, job.id)) {
+    res.status(403).json({ error: "Not your team's job." }); return null;
+  }
+  return { stage, job };
+}
 
-  const next = NEXT_APPROVAL[stage];           // submitted->lead_approved->admin_approved->approved
+router.post('/:id/approve', (req, res) => {
+  const ctx = actGuard(req, res); if (!ctx) return;
+  const next = NEXT_APPROVAL[ctx.stage];
   const fullyDone = next === 'approved';
   db.prepare('UPDATE jobs SET approval_stage=?, stage=? WHERE id=?')
-    .run(next, fullyDone ? 'Approved' : job.stage, job.id);
+    .run(next, fullyDone ? 'Approved' : ctx.job.stage, ctx.job.id);
   db.prepare('INSERT INTO approvals (job_id,level,approver_id,action,note) VALUES (?,?,?,?,?)')
-    .run(job.id, LEVEL_NAME[req.user.role], req.user.id, 'approved', (req.body && req.body.note) || '');
-  res.json(serializeJob(db.prepare('SELECT * FROM jobs WHERE id=?').get(job.id), req.user.role));
+    .run(ctx.job.id, LEVEL_NAME[req.user.role], req.user.id, 'approved', (req.body && req.body.note) || '');
+  logActivity({ actor: req.user, entity_type: 'approval', entity_id: ctx.job.id, job_id: ctx.job.id,
+    action: 'approved', new_value: fullyDone ? 'approved' : next, note: ctx.job.job_no });
+  // notify the next link in the chain (or the team on final approval)
+  if (fullyDone) {
+    notify(assigneeIds(ctx.job.id), `${ctx.job.job_no} (${ctx.job.client}) was fully approved 🎉`, 'approved', ctx.job.id);
+  } else if (next === 'lead_approved') {
+    notify(usersByRole('admin'), `${ctx.job.job_no} (${ctx.job.client}) needs your admin approval`, 'approval', ctx.job.id);
+  } else if (next === 'admin_approved') {
+    notify(usersByRole('super_admin'), `${ctx.job.job_no} (${ctx.job.client}) needs final approval`, 'approval', ctx.job.id);
+  }
+  res.json(serializeJob(db.prepare('SELECT * FROM jobs WHERE id=?').get(ctx.job.id), req.user));
 });
 
-/* Reject — send the job back to the assignee with a note. */
 router.post('/:id/reject', (req, res) => {
-  const stage = LEVEL_FOR_ROLE[req.user.role];
-  if (!stage) return res.status(403).json({ error: 'You cannot reject.' });
-  const job = db.prepare('SELECT * FROM jobs WHERE id=?').get(req.params.id);
-  if (!job) return res.status(404).json({ error: 'Job not found.' });
-  if (job.approval_stage !== stage)
-    return res.status(409).json({ error: 'This job is not at your approval stage.' });
-  if (req.user.role === 'team_lead' && job.team !== req.user.team)
-    return res.status(403).json({ error: "Not your team's job." });
+  const ctx = actGuard(req, res); if (!ctx) return;
   const note = (req.body && req.body.note) || 'Sent back for rework.';
   db.prepare("UPDATE jobs SET approval_stage='rejected', stage='Pending', reject_note=? WHERE id=?")
-    .run(note, job.id);
+    .run(note, ctx.job.id);
   db.prepare('INSERT INTO approvals (job_id,level,approver_id,action,note) VALUES (?,?,?,?,?)')
-    .run(job.id, LEVEL_NAME[req.user.role], req.user.id, 'rejected', note);
-  res.json(serializeJob(db.prepare('SELECT * FROM jobs WHERE id=?').get(job.id), req.user.role));
+    .run(ctx.job.id, LEVEL_NAME[req.user.role], req.user.id, 'rejected', note);
+  logActivity({ actor: req.user, entity_type: 'approval', entity_id: ctx.job.id, job_id: ctx.job.id,
+    action: 'rejected', note: note });
+  notify(assigneeIds(ctx.job.id), `${ctx.job.job_no} was sent back: ${note}`, 'rejected', ctx.job.id);
+  res.json(serializeJob(db.prepare('SELECT * FROM jobs WHERE id=?').get(ctx.job.id), req.user));
 });
 
-/* History trail for one job. */
 router.get('/:id/history', (req, res) => {
-  const rows = db.prepare(`SELECT a.*, u.name approver FROM approvals a
-    LEFT JOIN users u ON u.id=a.approver_id WHERE a.job_id=? ORDER BY a.id`).all(req.params.id);
-  res.json(rows);
+  res.json(db.prepare(`SELECT a.*, u.name approver FROM approvals a
+    LEFT JOIN users u ON u.id=a.approver_id WHERE a.job_id=? ORDER BY a.id`).all(req.params.id));
 });
 
 module.exports = router;

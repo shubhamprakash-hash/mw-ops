@@ -236,3 +236,175 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 }
 .menu-btn{display:none;width:34px;height:34px;border:1px solid var(--line);border-radius:8px;place-items:center;background:var(--surface)}
 .menu-btn svg{width:18px;height:18px}
+
+/* ===== v2 additions ===== */
+.mtabs{display:inline-flex;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:18px;flex-wrap:wrap}
+.mtabs button{padding:7px 15px;border-radius:7px;font-weight:600;font-size:13px;color:var(--ink2)}
+.mtabs button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.present-toggle{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-weight:600;font-size:12.5px;color:var(--ink2)}
+.present-toggle.on{background:var(--violet-soft);border-color:#C9BEEA;color:var(--violet)}
+.present-toggle svg{width:15px;height:15px}
+.present-banner{background:var(--violet-soft);border:1px solid #C9BEEA;color:var(--violet);border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.present-banner svg{width:15px;height:15px}
+.ctype{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px}
+.ctype-retainership{background:var(--violet-soft);color:var(--violet)}
+.ctype-project{background:var(--blue-soft);color:var(--blue)}
+.cstatus-prospective{background:var(--amber-soft);color:var(--amber)}
+.cstatus-converted{background:var(--green-soft);color:var(--green)}
+.memchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:3px 9px;margin:2px}
+.memchip button{color:var(--red);font-weight:700;font-size:13px;line-height:1}
+.linkbtn{color:var(--green2);font-weight:600;text-decoration:underline;cursor:pointer;background:none}
+.ratehist{display:flex;flex-direction:column;gap:0}
+.ratehist .rr{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line2)}
+.ratehist .rr:last-child{border:none}
+.ratehist .rr .amt{font-family:'JetBrains Mono';font-weight:700;min-width:90px}
+.ratehist .rr.cur{color:var(--green2)}
+.checkrow{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.checkrow input{width:16px;height:16px;accent-color:var(--green2)}
+.checkrow:hover{background:var(--surface2)}
+
+/* ============================================================
+   Phase 2 — notifications, job detail, sub-tasks, attachments
+   ============================================================ */
+.bellbtn{position:relative;width:34px;height:34px;border-radius:8px;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface);color:var(--ink2)}
+.bellbtn:hover{background:var(--surface2);color:var(--ink)}
+.bellbtn svg{width:16px;height:16px}
+.bellbtn .badge{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:0 5px;min-width:16px;height:16px;line-height:16px;text-align:center;font-family:'JetBrains Mono'}
+.bellbtn .badge.hide{display:none}
+
+.notiflist{display:flex;flex-direction:column;gap:2px;max-height:60vh;overflow:auto}
+.notifrow{display:flex;gap:10px;align-items:flex-start;padding:11px 10px;border-radius:9px;cursor:pointer}
+.notifrow:hover{background:var(--surface2)}
+.notifrow.unread{background:var(--blue-soft)}
+.notifrow.unread:hover{background:#DBE8FB}
+.ndot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--slate)}
+.nd-assigned{background:var(--blue)} .nd-approval{background:var(--amber)} .nd-approved{background:var(--green2)}
+.nd-rejected{background:var(--red)} .nd-round{background:var(--violet)} .nd-subtask{background:var(--slate)}
+.ntext{font-size:13px;color:var(--ink);line-height:1.35}
+.ntime{font-size:11px;color:var(--muted);margin-top:2px}
+
+.autonum{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px dashed var(--line2);border-radius:8px;padding:9px 11px;font-size:12.5px;color:var(--ink2)}
+.autonum svg{width:15px;height:15px;color:var(--muted);flex:none}
+.muted{color:var(--muted)}
+.linklike{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:2px}
+.linklike:hover{text-decoration-color:var(--ink2)}
+
+/* indicators on board / cards */
+.jindic{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.metachip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--ink2);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+.metachip svg{width:12px;height:12px}
+
+/* job detail modal */
+.jd{display:flex;flex-direction:column;gap:16px}
+.jdhead{border-bottom:1px solid var(--line);padding-bottom:14px}
+.jdtitle{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.jdmeta{margin-top:7px;font-size:12px;color:var(--muted)}
+.jdsec{display:flex;flex-direction:column;gap:8px}
+.jdsectitle{display:flex;align-items:center;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--ink2)}
+.jdactions{flex-direction:row;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:14px}
+
+.subs{display:flex;flex-direction:column;gap:2px}
+.checkrow2{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px}
+.checkrow2:hover{background:var(--surface2)}
+.checkrow2 input[type=checkbox]{width:16px;height:16px;accent-color:var(--green2);flex:none}
+.checkrow2 span{font-size:13.5px;color:var(--ink)}
+.checkrow2 .subdone{text-decoration:line-through;color:var(--muted)}
+
+.atts{display:flex;flex-direction:column;gap:4px}
+.attrow{display:flex;align-items:center;gap:9px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.attrow svg{width:16px;height:16px;color:var(--muted);flex:none}
+.attname{font-size:13px;font-weight:600;color:var(--blue);text-decoration:none}
+.attname:hover{text-decoration:underline}
+.attrow .muted{margin-left:auto;font-size:11.5px;font-family:'JetBrains Mono'}
+
+.briefhist{display:flex;flex-direction:column;gap:10px;max-height:62vh;overflow:auto}
+.bh{border:1px solid var(--line);border-radius:9px;padding:11px 13px;background:var(--surface)}
+.bhmeta{font-size:11.5px;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.bhtext{font-size:13.5px;color:var(--ink);line-height:1.4;white-space:pre-wrap}
+
+/* ============================================================
+   Phase 3 — reporting: period control, bandwidth, year-on-year
+   ============================================================ */
+.repbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.periodctl{display:flex;align-items:center;gap:10px}
+.periodtag{font-size:12px;font-weight:700;color:var(--ink2);background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:5px 11px}
+.periodctl input[type=month]{height:34px}
+
+/* utilisation bar in bandwidth table */
+.utilbar{position:relative;height:20px;background:var(--surface2);border-radius:6px;overflow:hidden;min-width:120px}
+.utilbar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;transition:width .3s}
+.utilbar span{position:absolute;right:8px;top:0;line-height:20px;font-size:11px;font-weight:700;font-family:'JetBrains Mono';color:var(--ink)}
+
+/* year-on-year cards */
+.yoygrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.yoycard{padding:16px 18px}
+.yoyyear{font-family:'Space Grotesk';font-weight:600;font-size:13px;color:var(--muted);letter-spacing:.04em}
+.yoybill{font-family:'Space Grotesk';font-weight:600;font-size:28px;color:var(--ink);margin-top:2px}
+.yoysub{font-size:12px;color:var(--ink2);margin-top:2px}
+.yoydelta{display:inline-block;margin-top:9px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;background:var(--surface2)}
+.yoydelta.pos{color:var(--green2);background:var(--green-soft)}
+.yoydelta.neg{color:var(--red);background:var(--red-soft)}
+.yoydelta.muted{color:var(--muted)}
+.yoybars{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.yoybars .yb{display:grid;grid-template-columns:62px 1fr auto;align-items:center;gap:9px;font-size:11.5px;color:var(--ink2)}
+.yoybars .yb .bar{height:8px;background:var(--surface2);border-radius:5px;overflow:hidden}
+.yoybars .yb .bar i{display:block;height:100%;border-radius:5px}
+.yoybars .yb b{font-family:'JetBrains Mono';font-size:11.5px;color:var(--ink)}
+.yoyfoot{display:flex;justify-content:space-between;align-items:center;margin-top:13px;padding-top:11px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.yoyfoot b{font-family:'JetBrains Mono'}
+
+/* ============================================================
+   Phase 4 — multi-team, issues, activity log, permissions
+   ============================================================ */
+.teamtag{display:inline-flex;align-items:center;font-size:11px;font-weight:700;color:var(--violet);background:var(--violet-soft);border-radius:6px;padding:2px 8px}
+.blockchip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--red);background:var(--red-soft);border-radius:6px;padding:2px 7px}
+.blockchip svg{width:12px;height:12px}
+
+/* job-modal team checkboxes */
+.checkrow{display:flex;flex-wrap:wrap;gap:8px}
+.checkrow .chk{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;background:var(--surface)}
+.checkrow .chk:hover{background:var(--surface2)}
+.checkrow .chk input{width:15px;height:15px;accent-color:var(--violet)}
+.checkrow .chk input:checked + span{color:var(--violet)}
+
+/* issues in job detail */
+.issues{display:flex;flex-direction:column;gap:6px}
+.issuerow{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+.issuerow.resolved{opacity:.6}
+.issuerow .sevdot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none;background:var(--amber)}
+.issuerow.sev-blocker .sevdot{background:var(--red)} .issuerow.sev-issue .sevdot{background:var(--amber)} .issuerow.sev-note .sevdot{background:var(--slate)}
+.issuebody{flex:1;min-width:0}
+.issuetop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px}
+.sevtag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:var(--surface2);color:var(--ink2)}
+.sevtag.sev-blocker{background:var(--red-soft);color:var(--red)} .sevtag.sev-issue{background:var(--amber-soft);color:var(--amber)} .sevtag.resolved{background:var(--green-soft);color:var(--green2)}
+.issuedetail{font-size:12.5px;color:var(--ink2);margin-top:3px;line-height:1.4}
+.issuemeta{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* activity log */
+.actlog{display:flex;flex-direction:column}
+.actrow{display:flex;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.actrow:last-child{border-bottom:none}
+.actdot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none}
+.actbody{flex:1;min-width:0}
+.actline{font-size:13px;color:var(--ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.actbadge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 7px;border-radius:5px}
+.actent{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.actfield{font-size:11.5px;font-weight:600;color:var(--ink2)}
+.acto{font-family:'JetBrains Mono';font-size:11.5px;color:var(--muted);text-decoration:line-through}
+.actn{font-family:'JetBrains Mono';font-size:11.5px;color:var(--ink);font-weight:600}
+.actnote{font-size:12px;color:var(--ink2);margin-top:2px}
+.acttime{font-size:11px;color:var(--muted);margin-top:3px}
+.afdate{font-size:12px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px}
+.afdate input{height:34px}
+
+/* permissions matrix */
+.permtable th.r,.permtable td.r{text-align:center}
+.permcell{display:inline-flex;flex-direction:column;align-items:center;gap:2px;min-width:74px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;color:var(--muted)}
+.permcell:hover{background:var(--surface2)}
+.permcell svg{width:16px;height:16px}
+.permcell.on{color:var(--green2)}
+.permcell .permx{font-weight:700;color:var(--line2);font-size:15px;line-height:16px}
+.permsrc{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.permcell.isgrant{border-color:#A9D8B8;background:var(--green-soft)} .permcell.isgrant .permsrc{color:var(--green2)}
+.permcell.isrevoke{border-color:#E7B4B4;background:var(--red-soft)} .permcell.isrevoke .permsrc{color:var(--red)}
+.permcell.isdef .permsrc{color:var(--muted)}

@@ -1,7 +1,7 @@
 {
   "name": "monkey-wrench-ops",
-  "version": "1.0.0",
-  "description": "Monkey Wrench Ops — job, timesheet, approval and P&L console with role-based access",
+  "version": "2.0.0",
+  "description": "Monkey Wrench Ops — job, timesheet, approval and P&L console with role-based access, masters, dated cost rates and Super-Admin-only financials",
   "type": "commonjs",
   "main": "server/index.js",
   "scripts": {

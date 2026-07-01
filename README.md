@@ -1,19 +1,32 @@
-# Monkey Wrench Ops
+# Monkey Wrench Ops 2.0
 
-A multi-user job, timesheet, approval, and P&L console for the studio. Real backend, real login, role-based access. Built with Node + Express + SQLite on the server and a plain (no-build) JavaScript single-page app on the front end.
+A multi-user **job, timesheet, approval, and P&L console** for the studio. Real backend, real login, role-based access. Node + Express + SQLite on the server; a plain (no-build) JavaScript single-page app on the front end.
+
+Version 2.0 adds the **Masters** layer (business verticals, teams, departments, clients), **dated cost rates** with full history preservation, a **presentation mode**, and a stricter money model: **financials are now Super-Admin-only**.
 
 ---
 
 ## What it does
 
-- **Office-email login** for everyone. Only `@monkeywrench.in` addresses can sign in.
+- **Office-email login** for everyone — only `@monkeywrench.in` addresses can sign in (domain configurable).
 - **Four roles** with different visibility (see table below).
 - **Job board** grouped by stage (Pipeline → Pending → Studio → Review → Done → Approved).
+- **Structured job numbers** — every job is auto-numbered `Year / Client No / Job No / R{round}` (e.g. `2026/0003/07/R1`) with an auto job date. The **round** bumps (R1 → R2 …) when a job comes back for rework after client feedback, via a one-click "New round".
+- **Job detail** — open any job to manage **sub-tasks** (checklist with assignees), **file attachments** (briefs/PDFs uploaded and downloaded in-app), a **brief version history** (every revision kept), a **delivery date**, and a configurable **workflow stage** (Strategy / Copy / Art / Artworking, extensible).
+- **Notifications** — an in-app bell alerts people when they're assigned a job, when work needs their approval, and when a job is approved or sent back.
+- **Masters** — maintain business **verticals** (e.g. Digital, Mainline), **teams** (with a lead, members, and the ability to move members between teams), **departments** (reporting structure), **clients** (project or retainership; converted or prospective), and **workflow stages**.
 - **Timesheets** — each person logs hours against the jobs they're assigned, then *submits the day*.
 - **The timesheet gate** — if you don't submit a day's timesheet, your next day's job list stays locked until you do.
-- **Three-step approval** — a finished job + its timesheet is signed off by the team lead → then an Admin → then the Super Admin.
-- **Money** (billing, manpower cost, profit, margin, P&L) is visible **only** to Admins and Super Admins. Team leads and members never see it.
-- **Backend** (user management, rates, dashboard, P&L) is reachable **only** by Admin and Super Admin.
+- **Three-step approval** — a finished job + its timesheet is signed off by the team lead → then an Admin → then a Super Admin.
+- **Dated cost rates** — every person's hourly cost is stored with an *effective-from* date. When a rate changes you add a new dated rate; **old jobs keep costing at the rate that was in effect on the day the work was done.** History is never overwritten.
+- **Money** (billing, manpower cost, profit, margin, dashboards, P&L) is visible **only to Super Admins**.
+- **Reporting (Super-Admin)** — every dashboard and report can be filtered by **vertical** and by **period** (this month, a year, or since inception). A **Team Bandwidth** report shows available vs logged hours and utilisation per person; **Year-on-Year** compares billing, cost, profit and margin across years with a project-vs-retainership split; and **P&L** can be sliced by client, job or vertical and by client type. All financials run on the dated-cost engine, so historical numbers never shift.
+- **Multiple teams per job** — a job can belong to several teams at once (picked by checkbox), and every lead of any of those teams sees it on their board and in their approval queue.
+- **Issues & blockers** — anyone on a job can raise a blocker, issue or note against it, assign an owner, and resolve it; open blockers show as a red flag on the board, and leads and assignees are notified.
+- **Activity log (audit trail)** — an immutable, append-only record of who did what and when, across job creation, edits, assignments, stage and round changes, submissions, approvals, sub-tasks, attachments and issues. It's filterable by person, action and date, and each job has its own activity timeline.
+- **Granular permissions** — roles carry sensible defaults, and a Super Admin can additionally **grant** a capability to a specific person (for example, give one trusted admin financial visibility) or **revoke** a default — per person, from a single screen.
+- **Admin-managed password resets** — a Super Admin or Admin issues a temporary password from Users; the person changes it at next sign-in. Everyone must change the seeded default on first login.
+- **Presentation mode** — a Super Admin can toggle all monetary figures off-screen for screen-shares and demos.
 
 ---
 
@@ -21,20 +34,24 @@ A multi-user job, timesheet, approval, and P&L console for the studio. Real back
 
 | Capability | Super Admin | Admin | Team Lead | Member |
 |---|:---:|:---:|:---:|:---:|
-| See & edit everything | ✅ | ✅ | — | — |
-| Backend (users, rates) | ✅ | ✅ | — | — |
-| Billing / Profit & Loss | ✅ | ✅ | ❌ hidden | ❌ hidden |
-| Assign tasks to members | ✅ | ✅ | ✅ (own team) | — |
-| Approve finished work | ✅ (final) | ✅ (2nd) | ✅ (1st, own team) | — |
-| Create users | ✅ (any role) | ✅ (lead/member only) | — | — |
+| Billing / cost / Profit & Loss / dashboards | ✅ | ❌ hidden | ❌ hidden | ❌ hidden |
+| Backend — Masters (verticals, teams, departments, clients) | ✅ | ✅ | — | — |
+| Backend — User management | ✅ (any role) | ✅ (lead/member only) | — | — |
+| Set a client's **retainership cost** | ✅ | ✅ (can set, can't view reports) | — | — |
+| View / edit **cost rates** & rate history | ✅ | ❌ | — | — |
+| Assign tasks to members | ✅ | ✅ | ✅ (own teams) | — |
+| Approve finished work | ✅ (final) | ✅ (2nd) | ✅ (1st, own teams) | — |
 | Log time & submit day | ✅ | ✅ | ✅ | ✅ |
 | Timesheet gate applies | exempt | exempt | ✅ | ✅ |
+| Presentation-mode toggle | ✅ | — | — | — |
+
+> **The key 2.0 change:** Admins run the operational backend (masters, users, assignments, approvals) but **no longer see any money**. All financial visibility — billing, cost, profit, margin, dashboards and P&L — is reserved for Super Admins. An Admin *can* enter a client's retainership cost, but cannot open any financial report.
 
 ---
 
 ## Requirements
 
-- **Node.js 20 or newer** (Node 22.5+ recommended — it ships a built-in SQLite that the app can fall back to, so it runs even without a native build).
+- **Node.js 20 or newer** (Node 22.5+ recommended — it ships a built-in SQLite the app can fall back to, so it runs even without a native build).
 
 ## Setup & run
 
@@ -60,36 +77,41 @@ npm run seed
 
 ## Seeded accounts
 
-Every account's password is **`changeme123`** and must be changed on first sign-in.
+Every account's password is **`changeme123`** and must be changed on first sign-in. (Sign-in still works on the first login; you're simply prompted to set a new password.)
 
 | Email | Role | Team |
 |---|---|---|
-| `founder@monkeywrench.in` | Super Admin | — |
+| `sanjay@monkeywrench.in` | Super Admin | — |
+| `pawas@monkeywrench.in` | Super Admin | — |
 | `ops@monkeywrench.in` | Admin | — |
 | `shivani@monkeywrench.in` | Team Lead | Hornet |
 | `adrija@monkeywrench.in` | Team Lead | Raptor |
 | `saddam@monkeywrench.in` | Team Lead | Studio |
-| `kusumanjan@`, `avishek@`, `anwesa@`, `shreyasi@`, `prakash@` | Member | Hornet |
-| `srinjani@`, `pronay@`, `aritra@`, `tiyash@`, `mrinmoyee@` | Member | Raptor |
-| `gaurab@`, `rahul@`, `sanu@` | Member | Studio |
+| 13 members across Hornet, Raptor and Studio | Member | (their team) |
 
-The jobs from the 11-May sheet are pre-loaded, with several Studio jobs deliberately parked at different points in the approval chain so you can watch the workflow move. Sign in as `saddam@` to see the lead's approval queue, then `ops@`, then `founder@` to walk a job all the way to **Approved**.
+Sample data includes two business **verticals** (Digital, Mainline), three **teams**, four **departments**, ten **clients** (one of them a *prospective* client), and the jobs sheet pre-loaded with several jobs parked at different points in the approval chain so you can watch the workflow move. Cost rates are seeded in **three dated tiers** (a 2025 baseline, a 2026 base, and a June-2026 raise for two people), and a handful of **2025 jobs** are included so the **Year-on-Year** report and period filters have a previous year to compare. Because costs are dated, a job worked in May-2026 keeps its old rate after the June rise, and 2025 jobs cost at the 2025 tier.
+
+To walk a job all the way to **Approved**, sign in as `saddam@` (lead queue) → `ops@` (admin approval) → `sanjay@` (final approval).
 
 ---
 
-## How the two key rules work
+## How the key rules work
 
 **Timesheet gate.** Before showing a non-admin their job list for today, the server checks the most recent past day on which they had assigned work. If they never *submitted* that day's timesheet, the job list returns locked (HTTP 423) and the app shows a "submit your timesheet for `<date>`" screen. Submitting that day unlocks the list.
 
-**Approval chain.** When an assignee marks a job done and hits *Submit for approval*, the job enters `submitted`. The respective team lead sees it in their queue and approves → `lead_approved`. An Admin approves → `admin_approved`. The Super Admin approves → `approved` and the job moves to the **Approved** stage. Anyone in the chain can **reject** with a note, which sends the job back to **Pending** for rework.
+**Approval chain.** When an assignee marks a job done and hits *Submit for approval*, the job enters `submitted`. The team lead sees it in their queue and approves → `lead_approved`. An Admin approves → `admin_approved`. A Super Admin approves → `approved` and the job moves to the **Approved** stage. Anyone in the chain can **reject** with a note, sending the job back to **Pending** for rework.
+
+**Dated cost rates (historical integrity).** A person's cost rate is a list of `(rate, effective_from)` records, not a single number. The cost of a job is the sum, over its timesheet entries, of `hours × the rate that was effective on that entry's work date`. Raising someone's rate adds a new dated record and leaves every past calculation untouched — so historical P&L never silently shifts. Rates and their history are visible to Super Admins only, under **Backend · Users**.
+
+**Password resets.** There's no self-service reset flow. When someone forgets their password, a Super Admin or Admin resets it from **Backend · Users** (the key icon), which issues a temporary password to hand over; the person sets their own password at their next sign-in.
 
 ---
 
 ## A few honest notes
 
-- **Billing amounts and hourly rates are placeholders.** Cost = logged hours × each person's rate; profit = billing − cost. Set real numbers in **Backend · Users** (rates) and on each job (billing) and every dashboard/P&L figure recalculates. Seeded margins look very high simply because little time has been logged yet.
-- **Login is email + password**, restricted to your office domain. For *true* "sign in with your office account" (Google Workspace / Microsoft 365 single sign-on), swap the `/api/login` handler in `server/index.js` for an OAuth flow with your provider — the role model and everything else stays the same. That step needs your company's identity-provider configuration, which only your IT/Workspace admin can set up.
-- This is the application source. **Running it on a shared server so the whole team can reach it is a deployment step** (see below) that has to happen on infrastructure you control.
+- **Billing amounts and hourly rates are placeholders.** Cost = logged hours × each person's *dated* rate; profit = billing − cost. Set real numbers in **Backend · Users** (rates) and on each job (billing) and every dashboard/P&L figure recalculates. Seeded margins look very high simply because little time has been logged yet.
+- **Login is email + password**, restricted to your office domain. For *true* "sign in with your office account" (Google Workspace / Microsoft 365 SSO), swap the `/api/login` handler in `server/index.js` for an OAuth flow with your provider — the role model and everything else stays the same. That step needs your company's identity-provider configuration, which only your IT/Workspace admin can set up.
+- This is the application source. **Running it on a shared server so the whole team can reach it is a deployment step** (below) that has to happen on infrastructure you control.
 
 ---
 
@@ -100,6 +122,8 @@ The jobs from the 11-May sheet are pre-loaded, with several Studio jobs delibera
 3. Serve it over **HTTPS** (secure cookies switch on in production).
 4. Back up the `data/` folder — that single SQLite file is your whole database.
 
+See `DEPLOY.md` for a step-by-step walkthrough.
+
 ---
 
 ## Project layout
@@ -107,18 +131,24 @@ The jobs from the 11-May sheet are pre-loaded, with several Studio jobs delibera
 ```
 mw-ops/
 ├── server/
-│   ├── index.js          Express app + auth endpoints + static serving
+│   ├── index.js          Express app + auth/public endpoints + static serving
 │   ├── db.js             Schema, roles/workflow constants, seed data
 │   ├── sqlite.js         DB driver adapter (better-sqlite3 → node:sqlite fallback)
 │   ├── auth.js           Login, JWT, password change
-│   ├── middleware.js     requireAuth / requireAdmin / the timesheet gate
-│   ├── helpers.js        Job serialization (hides money by role), cost math
+│   ├── middleware.js     requireAuth / requireBackend / requireSuper / requireCap / timesheet gate
+│   ├── helpers.js        Job serialization (hides money by role), dated-rate cost math
 │   └── routes/
-│       ├── jobs.js        Board, my-jobs (gated), assign, stage, submit
+│       ├── jobs.js        Board, my-jobs (gated), assign, submit, rounds, sub-tasks, attachments, brief versions, multi-team
 │       ├── timesheets.js  Log time, submit-day, gate status
 │       ├── approvals.js   Role-filtered queue + approve/reject
 │       ├── people.js      Assignable members (no rates exposed)
-│       └── admin.js       Users CRUD, rates, dashboard, P&L (admin-only)
+│       ├── issues.js      Issue / blocker tracking per job                          [auth]
+│       ├── masters.js     Verticals, teams, departments, clients, workflow stages    [manage_masters]
+│       ├── notifications.js The notification bell feed                              [auth]
+│       ├── activity.js    The immutable audit trail (filterable)                    [view_activity]
+│       ├── permissions.js Per-user capability grants                                [super only]
+│       ├── users.js       Users CRUD + dated rates & history                       [manage_users]
+│       └── finance.js     Dashboard, P&L, team bandwidth, year-on-year (period-aware) [view_finance]
 ├── public/               Front-end SPA (index.html, app.js, styles.css)
 ├── data/                 SQLite database (created on first run)
 ├── .env.example

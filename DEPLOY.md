@@ -9,7 +9,7 @@ This guide explains how to take the app from a folder on your computer to someth
 This is a **server application**, not a website you upload. It can't go on a plain web host the way a single HTML page would. It needs:
 
 1. A machine that **runs Node.js continuously** (the server process), and
-2. **Storage that survives restarts** — your entire database is one file at `data/mw-ops.db`. If that file gets wiped, every job, timesheet, and account is gone.
+2. **Storage that survives restarts** — your entire database is one file at `data/mw-ops.db`. Everything lives there, including uploaded brief files (attachments are stored *inside* the database, not as loose files). If that file gets wiped, every job, timesheet, attachment, and account is gone.
 
 Point 2 is the part people get wrong. Many "free" cloud tiers erase the filesystem on every restart, which silently destroys your data. The instructions below get this right.
 
@@ -33,7 +33,7 @@ Pick one computer that stays on during work hours (or a cheap mini-PC). This bec
 
 ### One-time setup
 
-1. **Install Node.js** (version 20 or newer) from <https://nodejs.org> — download the "LTS" installer and run it.
+1. **Install Node.js** (version **22 or newer** — the current LTS) from <https://nodejs.org> — download the "LTS" installer and run it. Node 22 matters: the app's fallback database engine (`node:sqlite`) only exists in Node 22.5+, so an older Node can fail to start.
 2. Copy the `mw-ops` folder onto the machine and unzip it.
 3. Open a terminal **in that folder**:
    - Windows: open the folder, type `cmd` in the address bar, press Enter.
@@ -43,6 +43,7 @@ Pick one computer that stays on during work hours (or a cheap mini-PC). This bec
    npm install
    npm start
    ```
+   `npm install` will try to compile **better-sqlite3** (the fast, production-grade database engine). On Windows and Mac it normally installs a prebuilt binary with no fuss. If your machine has no C/C++ build tools and it can't compile, that's fine — the app automatically falls back to Node's built-in SQLite and prints a one-line notice plus an "ExperimentalWarning: SQLite is an experimental feature." That warning is harmless; the app runs the same either way.
 5. You should see `Monkey Wrench Ops running → http://localhost:3000`.
 
 ### Let the team reach it
@@ -52,6 +53,8 @@ Pick one computer that stays on during work hours (or a cheap mini-PC). This bec
    - Mac: System Settings → Network, or run `ipconfig getifaddr en0`.
 2. Anyone on the same office Wi-Fi/network opens **`http://192.168.1.42:3000`** (use your actual number).
 3. Allow the app through the machine's firewall if prompted the first time.
+
+> **Important — don't set `NODE_ENV=production` on a plain office machine.** In production mode the app marks login cookies "secure," meaning the browser only sends them over **HTTPS**. An office machine reached over plain `http://192.168.x.x` has no HTTPS, so logins would appear to succeed and then immediately bounce back to the sign-in screen. On Route A, leave `NODE_ENV` unset (development). The secure-cookie setting is meant for Routes B and C, where the host gives you HTTPS automatically.
 
 ### Keep it running reliably
 
@@ -125,13 +128,13 @@ Don't set `PORT` — Render provides it and the app picks it up automatically.
 
 1. In the service, open **Disks → Add Disk**.
 2. **Mount Path**: `/var/data`  (this must match the `DATA_DIR` value above).
-3. Size: 1 GB is plenty.
+3. Size: 1 GB comfortably holds the database for a typical agency. Because uploaded brief files are kept **inside** the database (capped at 12 MB each), heavy attachment use will grow it — bump the disk to 5–10 GB if your team uploads a lot of large files.
 
 This is what keeps your database alive across restarts and redeploys. Without it, Render's filesystem is wiped on every restart and you lose everything.
 
 ### Step 5 — Launch
 
-Click **Create / Deploy**. After a couple of minutes you'll get a URL like `https://mw-ops.onrender.com`. Open it, sign in as `founder@monkeywrench.in` / `changeme123`, and change the password.
+Click **Create / Deploy**. After a couple of minutes you'll get a URL like `https://mw-ops.onrender.com`. Open it, sign in as `sanjay@monkeywrench.in` / `changeme123`, and change the password.
 
 ---
 
@@ -159,13 +162,36 @@ For an always-on service Railway runs about $5/month; its free credit isn't enou
 | `OFFICE_DOMAIN` | Only emails on this domain can sign in | `monkeywrench.in` |
 | `SEED_PASSWORD` | First-run password for seeded accounts | `changeme123` |
 | `DATA_DIR` | Folder holding the database file | the app's `data/` folder |
-| `NODE_ENV` | Set to `production` on a live host (enables secure cookies) | `development` |
+| `NODE_ENV` | `production` enables secure (HTTPS-only) cookies — use on Routes B/C, **not** on a plain-HTTP office machine | `development` |
+
+---
+
+## Resetting a forgotten password
+
+There's no self-service "forgot password" flow — password resets are an admin action, which keeps the login screen simple and avoids needing a mail server.
+
+When someone forgets their password, a **Super Admin or Admin** opens **Users**, clicks the key icon next to that person, and the app issues a fresh temporary password to hand over. The person is prompted to set their own password the next time they sign in. That's the whole process; no email configuration is required.
+
+---
+
+## Going to production safely (Routes B & C)
+
+A short pre-flight before you let people in:
+
+- [ ] **`JWT_SECRET`** set to a long random string (not the placeholder). Changing it later logs everyone out — fine, but expected.
+- [ ] **`NODE_ENV=production`** so login cookies are secure. Render and Railway terminate HTTPS for you, so this is correct there.
+- [ ] **`OFFICE_DOMAIN`** matches your real email domain (this is what login is restricted to).
+- [ ] **Persistent disk/volume** attached and `DATA_DIR` pointing at it (see each route's steps).
+- [ ] First login done as a Super Admin and the **default password changed**. There are two seeded Super Admins — `sanjay@` and `pawas@monkeywrench.in` — change both.
+- [ ] Optionally rotate `SEED_PASSWORD` before first run, though everyone is force-changed at first sign-in anyway.
+
+A note on the access model so you're not surprised: **financial figures (billing, cost, P&L, all reports) are visible only to Super Admins.** Admins run the operational side (jobs, masters, users) but see no money unless a Super Admin explicitly grants them the "view financials" capability in **Permissions**.
 
 ---
 
 ## Backing up your data
 
-Your whole system is one file: `mw-ops.db` (inside `data/`, or inside `DATA_DIR` on a cloud host).
+Your whole system is one file: `mw-ops.db` (inside `data/`, or inside `DATA_DIR` on a cloud host). Because attachments live inside it too, copying this one file backs up everything — jobs, timesheets, accounts, and uploaded files alike.
 
 - **Office machine (Route A):** copy the `data/` folder somewhere safe on a schedule — a shared drive, a backup tool, anything. That copy is a full restore point.
 - **Render / Railway:** the persistent disk is durable, but still take periodic copies. Use the host's shell/console to download `mw-ops.db`, or set up a scheduled copy. Render's disks also take automatic daily snapshots.
@@ -196,20 +222,24 @@ For true single sign-on — where people click "Sign in with Google/Microsoft" a
 ## Troubleshooting
 
 - **"Cannot find module 'express'"** — you didn't run `npm install` in the project folder.
+- **Login succeeds then immediately returns to the sign-in screen** — you've set `NODE_ENV=production` while serving over plain `http://` (typically a Route A office machine). Secure cookies require HTTPS; unset `NODE_ENV` (or use a host that provides HTTPS) and try again.
+- **"ExperimentalWarning: SQLite is an experimental feature"** — harmless. It just means better-sqlite3 didn't compile on this machine and the app is using Node's built-in SQLite instead. Everything works; the data format is identical. To silence it, install build tools so better-sqlite3 can compile, or ignore it.
 - **Login says "Use your office email"** — the email doesn't end in `@monkeywrench.in`. Change `OFFICE_DOMAIN` if your real domain differs, then re-seed.
+- **Someone forgot their password** — a Super Admin or Admin resets it from **Users** (the key icon), which issues a temporary password. There's no self-service email reset.
 - **Data disappeared after a redeploy (cloud)** — the persistent disk/volume isn't attached, or `DATA_DIR` doesn't match the mount path. Both must point to the same folder.
 - **Teammates can't reach the office machine** — they must be on the same network, the machine's firewall must allow the port, and you must use the machine's IP, not `localhost`.
-- **Node version errors** — install Node 20 or newer (22+ recommended).
+- **Node version errors / won't start on an old Node** — install **Node 22 or newer**; the built-in database fallback needs 22.5+.
 
 ---
 
 ## Quick checklist
 
-- [ ] Node.js installed (20+)
+- [ ] Node.js installed (**22 or newer**)
 - [ ] `npm install` run successfully
 - [ ] App starts and you can log in locally
 - [ ] (Cloud) Code pushed to a private GitHub repo
 - [ ] (Cloud) `JWT_SECRET` set to a long random string
+- [ ] (Cloud) `NODE_ENV=production` set (Routes B/C only — never on a plain-HTTP office machine)
 - [ ] (Cloud) Persistent disk/volume attached and `DATA_DIR` points to it
-- [ ] First login done and the default password changed
+- [ ] First login done and the default password changed for **both** Super Admins
 - [ ] A backup of `data/` is in place
