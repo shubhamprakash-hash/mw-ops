@@ -375,6 +375,13 @@ if (missingSeq.length) {
   orphans.forEach(j => { const tid = teamByName[j.team]; if (tid) ins.run(j.id, tid); });
 })();
 
+// Cost rates: at most one rate per person per effective date. Two rates on the
+// same day are contradictory, so collapse any duplicates (keep the most recently
+// entered) and add a uniqueness guard so future edits replace rather than stack.
+db.exec(`DELETE FROM cost_rates WHERE id NOT IN (
+  SELECT MAX(id) FROM cost_rates GROUP BY user_id, effective_from);`);
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_rate_user_date ON cost_rates(user_id, effective_from);');
+
 
 /* ---------- seed ---------- */
 function alreadySeeded() {
@@ -481,16 +488,17 @@ function seed() {
     C[name] = insC.run(name, type, seq, vId, status, retainer, ops).lastInsertRowid;
     Cseq[name] = seq;
   };
-  addC('Nipha','project',mainline);
+  // For project clients the 5th value is the one-time project fee; for retainership clients it's the monthly retainer.
+  addC('Nipha','project',mainline,'converted',450000);
   addC('Polar','retainership',mainline,'converted',150000);
   addC('Supra','retainership',mainline,'converted',200000);
-  addC('Sawansukha','project',mainline);
-  addC('OneHorn','project',digital);
+  addC('Sawansukha','project',mainline,'converted',275000);
+  addC('OneHorn','project',digital,'converted',600000);
   addC('Doreme','retainership',digital,'converted',120000);
-  addC('Total','project',digital);
+  addC('Total','project',digital,'converted',180000);
   addC('MW','retainership',digital,'converted',0);
-  addC('Red Pan — Bold Asian','project',mainline);
-  addC('Lighthouse Realty','project',mainline,'prospective'); // not yet converted
+  addC('Red Pan — Bold Asian','project',mainline,'converted',350000);
+  addC('Lighthouse Realty','project',mainline,'prospective',500000); // not yet converted
 
   // jobs (from the 11-May sheet) linked to client master + vertical.
   // Job numbers use the 2.0 structured scheme: YEAR / ClientNo(4) / JobNo(2) / R{round}.

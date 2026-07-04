@@ -1356,12 +1356,12 @@ async function mastersClients(host){
   const sup=isSuper(), canSet=isBackend();
   host.innerHTML=`<div class="filters" style="justify-content:flex-end"><button class="btn pri" id="addC">${icon('plus')}Add client</button></div>
   <div class="card" style="overflow:hidden"><table class="dtable">
-    <thead><tr><th>Client</th><th>Type</th><th>Status</th><th>Vertical</th>${sup?'<th class="r">Retainer ₹/mo</th>':''}<th class="r">Jobs</th><th></th></tr></thead>
+    <thead><tr><th>Client</th><th>Type</th><th>Status</th><th>Vertical</th>${sup?'<th class="r">Value ₹</th>':''}<th class="r">Jobs</th><th></th></tr></thead>
     <tbody>${cls.map(c=>`<tr><td style="font-weight:600">${esc(c.name)}</td>
       <td><span class="ctype ctype-${c.type}">${esc(c.type)}</span></td>
       <td><span class="cstatus cstatus-${c.status}">${esc(c.status)}</span></td>
       <td>${esc(c.vertical||'—')}</td>
-      ${sup?`<td class="r mono">${c.type==='retainership'?INR(c.retainer_cost||0):'—'}</td>`:''}
+      ${sup?`<td class="r mono">${c.retainer_cost?`${INR(c.retainer_cost)}<span style="color:var(--muted);font-weight:400;font-size:11px;margin-left:4px">${c.type==='retainership'?'/mo':'one-time'}</span>`:'—'}</td>`:''}
       <td class="r mono">${c.jobs}</td>
       <td><div class="rowact"><button class="icon-btn" data-ec="${c.id}" title="Edit">${icon('edit')}</button><button class="icon-btn" data-dc="${c.id}" title="Delete">${icon('trash')}</button></div></td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No clients yet.</td></tr>'}</tbody>
   </table></div>`;
@@ -1373,7 +1373,7 @@ async function mastersClients(host){
         <div class="field"><label>Type</label><select id="c_type"><option value="project" ${c.type==='project'?'selected':''}>Project</option><option value="retainership" ${c.type==='retainership'?'selected':''}>Retainership</option></select></div>
         <div class="field"><label>Status</label><select id="c_status"><option value="converted" ${c.status==='converted'?'selected':''}>Converted</option><option value="prospective" ${c.status==='prospective'?'selected':''}>Prospective</option></select></div>
         <div class="field"><label>Vertical</label><select id="c_vert"><option value="">—</option>${vs.map(v=>`<option value="${v.id}" ${c.vertical_id==v.id?'selected':''}>${esc(v.name)}</option>`).join('')}</select></div>
-        ${canSet?`<div class="field full"><label>Retainer cost ₹/mo ${sup?'':'<span class="help">write-only — only super admins can view it back</span>'}</label><input id="c_ret" type="number" min="0" step="1000" value="${sup?(c.retainer_cost||0):''}" placeholder="for retainership clients"></div>`:''}
+        ${canSet?`<div class="field full"><label><span id="c_ret_lbl">${c.type==='retainership'?'Monthly retainer (₹/mo)':'Project value — one-time (₹)'}</span> ${sup?'':'<span class="help">write-only — only super admins can view it back</span>'}</label><input id="c_ret" type="number" min="0" step="1000" value="${sup?(c.retainer_cost||0):''}" placeholder="amount in ₹"></div>`:''}
         ${cfDefs.length?`<div class="field full cfhdr"><span>Custom fields</span></div>${customFieldsHtml(cfDefs, c.custom)}`:''}
       </div>`,isNew?'Add':'Save',async()=>{
         const body={name:val('c_name'),type:value('c_type'),status:value('c_status'),vertical_id:value('c_vert')?+value('c_vert'):null,custom:collectCustom(cfDefs)};
@@ -1381,6 +1381,8 @@ async function mastersClients(host){
         if(isNew) await api('POST','/masters/clients',body); else await api('PUT','/masters/clients/'+c.id,body);
         toast('Saved'); reMasters(); return true;
       },'wide');
+    const _ct=document.getElementById('c_type'), _rl=document.getElementById('c_ret_lbl');
+    if(_ct&&_rl) _ct.onchange=()=>{ _rl.textContent = _ct.value==='retainership'?'Monthly retainer (₹/mo)':'Project value — one-time (₹)'; };
   };
   document.getElementById('addC').onclick=()=>clientForm(null);
   host.querySelectorAll('[data-ec]').forEach(b=>b.onclick=()=>clientForm(cls.find(x=>x.id==b.dataset.ec)));

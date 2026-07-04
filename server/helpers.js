@@ -7,14 +7,21 @@ const { db, canSeeMoney } = require('./db');
 function costRateOn(userId, dateStr) {
   const row = db.prepare(`SELECT cost_per_hour FROM cost_rates
     WHERE user_id = ? AND date(effective_from) <= date(?)
-    ORDER BY date(effective_from) DESC LIMIT 1`).get(userId, dateStr);
+    ORDER BY date(effective_from) DESC, id DESC LIMIT 1`).get(userId, dateStr);
   return row ? row.cost_per_hour : 0;
 }
-/* current (latest) cost rate — for display in user management */
+/* current cost rate for display in user management: the rate in effect *today*.
+   (A future-dated rate isn't "current" yet — it still shows in the history modal.)
+   If only future-dated rates exist, fall back to the soonest so the column isn't blank. */
 function currentRate(userId) {
-  const row = db.prepare(`SELECT cost_per_hour FROM cost_rates
-    WHERE user_id = ? ORDER BY date(effective_from) DESC LIMIT 1`).get(userId);
-  return row ? row.cost_per_hour : 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const now = db.prepare(`SELECT cost_per_hour FROM cost_rates
+    WHERE user_id = ? AND date(effective_from) <= date(?)
+    ORDER BY date(effective_from) DESC, id DESC LIMIT 1`).get(userId, today);
+  if (now) return now.cost_per_hour;
+  const soon = db.prepare(`SELECT cost_per_hour FROM cost_rates
+    WHERE user_id = ? ORDER BY date(effective_from) ASC, id ASC LIMIT 1`).get(userId);
+  return soon ? soon.cost_per_hour : 0;
 }
 
 /* a job's cost = each timesheet entry's hours × the rate effective on that entry's date */

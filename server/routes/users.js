@@ -85,13 +85,18 @@ router.delete('/:id', (req, res) => {
 /* ---- dated cost rates (SUPER ONLY) ---- */
 router.get('/:id/rates', requireSuper, (req, res) => {
   res.json(db.prepare(`SELECT cr.*, u.name AS by_name FROM cost_rates cr
-    LEFT JOIN users u ON u.id=cr.created_by WHERE cr.user_id=? ORDER BY date(cr.effective_from) DESC`).all(req.params.id));
+    LEFT JOIN users u ON u.id=cr.created_by WHERE cr.user_id=? ORDER BY date(cr.effective_from) DESC, cr.id DESC`).all(req.params.id));
 });
 router.post('/:id/rates', requireSuper, (req, res) => {
   const b = req.body || {};
   const rate = Math.max(0, parseInt(b.cost_per_hour) || 0);
   const from = b.effective_from || new Date().toISOString().slice(0, 10);
-  db.prepare('INSERT INTO cost_rates (user_id,cost_per_hour,effective_from,created_by) VALUES (?,?,?,?)')
+  // One rate per person per effective date: setting a rate on a date that already
+  // has one replaces it (keeps history clean and the effective rate unambiguous).
+  db.prepare(`INSERT INTO cost_rates (user_id,cost_per_hour,effective_from,created_by)
+    VALUES (?,?,?,?)
+    ON CONFLICT(user_id,effective_from) DO UPDATE SET
+      cost_per_hour=excluded.cost_per_hour, created_by=excluded.created_by, created_at=datetime('now')`)
     .run(req.params.id, rate, from, req.user.id);
   res.json({ ok: true });
 });
