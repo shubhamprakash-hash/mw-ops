@@ -1133,10 +1133,16 @@ async function viewData(C){
 
     <div class="card datacard danger-card">
       <div class="dctitle">${icon('trash')} Reset</div>
-      <div class="hint" style="color:var(--muted);margin-bottom:10px">Wipe operational data. This cannot be undone — take a backup first.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" id="dSeed">Reset to sample data</button>
-        <button class="btn danger" id="dWipe">${icon('trash')}Wipe everything</button>
+      <div class="hint" style="color:var(--muted);margin-bottom:12px">Both actions are permanent — take a backup first.</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <button class="btn" id="dZero">Reset to zero</button>
+          <div class="hint" style="color:var(--muted);margin-top:6px">Clears all jobs, timesheets, approvals, issues, activity and notifications. Your people, clients, teams and settings stay — every count and financial returns to zero. No sample data.</div>
+        </div>
+        <div>
+          <button class="btn danger" id="dWipe">${icon('trash')}Wipe everything</button>
+          <div class="hint" style="color:var(--muted);margin-top:6px">Removes all data including people, clients and settings. Only the Super Admin logins remain, so you can sign back in and start fresh.</div>
+        </div>
       </div>
     </div>
   </div>`;
@@ -1161,14 +1167,14 @@ async function viewData(C){
       toast('Restored — '+r.users+' users. Reloading…'); setTimeout(()=>location.reload(),900);
     }catch(e){ toast('Restore failed: '+e.message,true); }
   };
-  document.getElementById('dSeed').onclick=async()=>{
-    if(!confirm('Wipe all current data and replace it with the sample/demo dataset? This cannot be undone.'))return;
-    try{ await api('POST','/data/reset',{mode:'seed'}); toast('Reset to sample data. Reloading…'); setTimeout(()=>location.reload(),800);}catch(e){toast(e.message,true);}
+  document.getElementById('dZero').onclick=async()=>{
+    if(!confirm('Reset all operational data to zero?\n\nJobs, timesheets, approvals, issues, activity and notifications will be permanently deleted. Your people, clients, teams and settings stay. This cannot be undone — take a backup first.'))return;
+    try{ await api('POST','/data/reset',{mode:'zero'}); toast('Reset to zero. Reloading…'); setTimeout(()=>location.reload(),800);}catch(e){toast(e.message,true);}
   };
   document.getElementById('dWipe').onclick=async()=>{
-    if(!confirm('WIPE EVERYTHING — all jobs, clients, users, timesheets and history? This cannot be undone.'))return;
-    if(!confirm('Are you absolutely sure? You will be signed out and the app will have no accounts until restored.'))return;
-    try{ await api('POST','/data/reset',{mode:'empty'}); toast('All data wiped. Reloading…'); setTimeout(()=>location.reload(),800);}catch(e){toast(e.message,true);}
+    if(!confirm('WIPE EVERYTHING except Super Admin logins?\n\nAll jobs, clients, users, timesheets, masters and history will be permanently deleted. Only Super Admin accounts and their passwords remain. This cannot be undone.'))return;
+    if(!confirm('Are you absolutely sure? Everything except the Super Admin logins will be erased.'))return;
+    try{ await api('POST','/data/reset',{mode:'wipe'}); toast('Everything wiped except Super Admin. Reloading…'); setTimeout(()=>location.reload(),1000);}catch(e){toast(e.message,true);}
   };
 }
 

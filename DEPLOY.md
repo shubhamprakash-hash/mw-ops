@@ -174,7 +174,7 @@ The **Data** section (Super Admins only) is a self-serve console for the whole d
 
 - **Export** — download the jobs dataset as **CSV or JSON**, filtered by **all time, a year, or a month**; or take a **full backup** (a complete JSON snapshot of every table, used for restore).
 - **Restore** — upload a previously downloaded full backup to replace the current database (wrapped in a transaction; it rolls back if the file is malformed).
-- **Reset** — wipe to the sample/demo dataset, or wipe everything to an empty database.
+- **Reset** — two options: *Reset to zero* clears all operational data (jobs, timesheets, approvals, issues, activity) while keeping your people, clients and setup, so every count and financial returns to zero; *Wipe everything* removes all data except the Super Admin logins, so you can sign back in and rebuild from scratch. Neither loads sample data.
 
 Take a full backup before any restore or reset — these overwrite data and can't be undone.
 

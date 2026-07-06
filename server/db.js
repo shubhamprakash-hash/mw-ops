@@ -630,19 +630,50 @@ function seed() {
   console.log(`Default password for all seeded users: "${DEFAULT_PW}" (must change on first login).`);
 }
 
-// Order matters only loosely thanks to cascades; listed child→parent for clarity.
+/* ---------- data wipes ----------
+   All wipes suspend foreign-key enforcement so delete order can never trip
+   "FOREIGN KEY constraint failed". Toggling FK is a no-op inside a transaction,
+   so the restore path (which sets FK off before its own BEGIN) stays correct. */
+const ALL_TABLES = ['custom_field_values', 'reset_codes', 'activity_log', 'issues', 'job_teams',
+  'user_permissions', 'notifications', 'brief_versions', 'attachments', 'subtasks', 'workflow_stages',
+  'approvals', 'daily_submissions', 'timesheet_entries', 'job_assignments', 'jobs', 'cost_rates',
+  'team_members', 'clients', 'users', 'departments', 'teams', 'verticals', 'custom_fields'];
+// Transactional/operational data — everything that represents "work" or activity.
+// Clearing these zeroes out all counts and financials while leaving the setup
+// (people, clients, teams, departments, verticals, workflow stages, cost rates,
+// permissions and custom-field definitions) untouched.
+const OPERATIONAL_TABLES = ['custom_field_values', 'reset_codes', 'activity_log', 'issues',
+  'notifications', 'brief_versions', 'attachments', 'subtasks', 'approvals', 'daily_submissions',
+  'timesheet_entries', 'job_assignments', 'job_teams', 'jobs'];
+
+function delFrom(tables) { db.exec(tables.map(t => `DELETE FROM ${t};`).join(' ')); }
+
+// Full wipe — every table emptied (used by restore).
 function wipeAll() {
-  db.exec(`DELETE FROM custom_field_values; DELETE FROM reset_codes;
-    DELETE FROM activity_log; DELETE FROM issues; DELETE FROM job_teams; DELETE FROM user_permissions;
-    DELETE FROM notifications; DELETE FROM brief_versions; DELETE FROM attachments;
-    DELETE FROM subtasks; DELETE FROM workflow_stages;
-    DELETE FROM approvals; DELETE FROM daily_submissions;
-    DELETE FROM timesheet_entries; DELETE FROM job_assignments; DELETE FROM jobs;
-    DELETE FROM cost_rates; DELETE FROM team_members; DELETE FROM clients;
-    DELETE FROM users; DELETE FROM departments; DELETE FROM teams; DELETE FROM verticals;
-    DELETE FROM custom_fields;`);
+  db.exec('PRAGMA foreign_keys = OFF');
+  try { delFrom(ALL_TABLES); }
+  finally { db.exec('PRAGMA foreign_keys = ON'); }
 }
-// Wipe then re-seed the demo dataset (used by Data Management → "reset to sample data").
+
+// Reset to zero — clear all operational data; keep the setup. No sample data.
+function clearOperational() {
+  db.exec('PRAGMA foreign_keys = OFF');
+  try { delFrom(OPERATIONAL_TABLES); }
+  finally { db.exec('PRAGMA foreign_keys = ON'); }
+}
+
+// Wipe everything except the Super Admin logins (so you can sign back in and
+// rebuild from scratch). Kept accounts get their now-dangling refs nulled.
+function wipeExceptSuper() {
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    delFrom(ALL_TABLES.filter(t => t !== 'users'));
+    db.exec("DELETE FROM users WHERE role <> 'super_admin';");
+    db.exec("UPDATE users SET department_id = NULL, reports_to = NULL WHERE role = 'super_admin';");
+  } finally { db.exec('PRAGMA foreign_keys = ON'); }
+}
+
+// Wipe then re-seed the demo dataset (dev/CLI only — not exposed in the app UI).
 function resetToSeed() { wipeAll(); seed(); }
 
 if (require.main === module && process.argv.includes('--reseed')) {
@@ -655,4 +686,4 @@ if (require.main === module && process.argv.includes('--reseed')) {
 module.exports = { db, ROLES, ROLE_RANK, isBackend, isSuper, canSeeMoney, canSetRetainerCost,
   CAPABILITIES, ROLE_CAPS, capabilitiesOf, userHasCap,
   STAGES, APPROVAL, LEVEL_FOR_ROLE, NEXT_APPROVAL, OFFICE_DOMAIN,
-  DB_PATH, DATA_DIR, seed, wipeAll, resetToSeed, alreadySeeded };
+  DB_PATH, DATA_DIR, seed, wipeAll, resetToSeed, clearOperational, wipeExceptSuper, alreadySeeded };

@@ -4,11 +4,11 @@
      • GET  /data/export?scope=backup&format=json         full DB backup (JSON)
      • GET  /data/export?scope=jobs&format=json|csv&period=&date=   report export
      • POST /data/restore   { ...backup }  replace the database from a backup
-     • POST /data/reset     { mode }        wipe → sample data ('seed') or empty
+     • POST /data/reset     { mode }        'zero' (clear operational) | 'wipe' (all but super admin)
    ============================================================ */
 const express = require('express');
 const router = express.Router();
-const { db, wipeAll, resetToSeed } = require('../db');
+const { db, wipeAll, clearOperational, wipeExceptSuper } = require('../db');
 const { jobCost, jobHours, jobTeamNames, customValues, customFieldDefs } = require('../helpers');
 
 /* ---------- helpers ---------- */
@@ -128,11 +128,15 @@ router.post('/restore', (req, res) => {
   res.json({ ok: true, users });
 });
 
-/* ---------- reset ---------- */
+/* ---------- reset ----------
+   mode 'zero' → clear all operational data; keep people, clients & setup (no sample data)
+   mode 'wipe' → remove everything except the Super Admin logins                */
 router.post('/reset', (req, res) => {
-  const mode = (req.body && req.body.mode) === 'empty' ? 'empty' : 'seed';
+  const mode = (req.body && req.body.mode) || '';
   try {
-    if (mode === 'empty') wipeAll(); else resetToSeed();
+    if (mode === 'zero') clearOperational();
+    else if (mode === 'wipe') wipeExceptSuper();
+    else return res.status(400).json({ error: 'Unknown reset mode.' });
   } catch (e) { return res.status(500).json({ error: e.message }); }
   res.json({ ok: true, mode });
 });
