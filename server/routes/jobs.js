@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { db, isBackend, STAGES } = require('../db');
-const { requireBackend, requireRole, gateJobList } = require('../middleware');
+const { requireBackend, requireRole, requireCap, gateJobList } = require('../middleware');
 const { serializeJob, teamNamesLedBy, jobTeamNames, jobTeamIds, nextJobNumber, formatJobNo, notify, logActivity, setCustomValues } = require('../helpers');
 
 const getJob = id => db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
@@ -59,8 +59,12 @@ router.get('/', (req, res) => {
       JOIN teams t ON t.id = jt.team_id
       WHERE t.lead_id = ? ORDER BY j.id DESC`).all(id);
   } else {
-    rows = db.prepare(`SELECT j.* FROM jobs j JOIN job_assignments a ON a.job_id = j.id
-      WHERE a.user_id = ? ORDER BY j.id DESC`).all(id);
+    // members see jobs they're assigned to — plus any they created (relevant when
+    // granted the "create & assign jobs" capability).
+    rows = db.prepare(`SELECT DISTINCT j.* FROM jobs j
+      WHERE j.created_by = ?
+         OR j.id IN (SELECT job_id FROM job_assignments WHERE user_id = ?)
+      ORDER BY j.id DESC`).all(id, id);
   }
   res.json(rows.map(j => serializeJob(j, req.user)));
 });
@@ -83,7 +87,7 @@ router.get('/:id', (req, res) => {
 
 /* ---------------- create ----------------
    Auto-generates the structured job number + job date. Billing super-only. */
-router.post('/', requireBackend, (req, res) => {
+router.post('/', requireCap('manage_jobs'), (req, res) => {
   const b = req.body || {};
   const billing = req.user.role === 'super_admin' ? Math.max(0, parseInt(b.billing) || 0) : 0;
   const cl = b.client_id ? db.prepare('SELECT name FROM clients WHERE id = ?').get(b.client_id) : null;
@@ -162,7 +166,7 @@ router.post('/:id/round', requireRole('super_admin', 'admin', 'team_lead'), (req
 });
 
 /* ---------------- assignment ---------------- */
-router.post('/:id/assign', requireRole('super_admin', 'admin', 'team_lead'), (req, res) => {
+router.post('/:id/assign', requireCap('manage_jobs'), (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found.' });
   if (!leadOwnsTeam(req, job)) return res.status(403).json({ error: 'You can only assign within your team.' });
@@ -180,7 +184,7 @@ router.post('/:id/assign', requireRole('super_admin', 'admin', 'team_lead'), (re
   res.json(serializeJob(getJob(job.id), req.user));
 });
 
-router.post('/:id/unassign', requireRole('super_admin', 'admin', 'team_lead'), (req, res) => {
+router.post('/:id/unassign', requireCap('manage_jobs'), (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found.' });
   if (!leadOwnsTeam(req, job)) return res.status(403).json({ error: 'You can only manage your team.' });

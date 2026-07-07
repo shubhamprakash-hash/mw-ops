@@ -4,12 +4,15 @@
 const express = require('express');
 const router = express.Router();
 const { db, isBackend } = require('../db');
-const { requireRole } = require('../middleware');
+const { requireRole, requireCap } = require('../middleware');
 const { memberIdsOfLeadTeams } = require('../helpers');
 
-router.get('/', requireRole('super_admin', 'admin', 'team_lead'), (req, res) => {
+router.get('/', requireCap('manage_jobs'), (req, res) => {
+  // Team leads see only members of the teams they lead; everyone else with the
+  // "create & assign jobs" capability (admins, super admins, granted members)
+  // sees the full assignable list.
   let rows;
-  if (isBackend(req.user.role)) {
+  if (req.user.role !== 'team_lead') {
     rows = db.prepare(`SELECT u.id,u.name,u.job_role,u.role,
       (SELECT GROUP_CONCAT(t.name,', ') FROM team_members tm JOIN teams t ON t.id=tm.team_id WHERE tm.user_id=u.id) AS teams
       FROM users u WHERE u.active=1 ORDER BY u.name`).all();

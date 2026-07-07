@@ -32,11 +32,11 @@ const canSetRetainerCost = role => role === 'admin' || role === 'super_admin';
    Capabilities layer on top of roles. A role grants a default set; a Super Admin
    can additionally GRANT a capability to a specific user, or REVOKE a default.
    Role still governs job-board scope, approvals, timesheets and job creation. */
-const CAPABILITIES = ['view_finance', 'manage_masters', 'manage_users', 'view_activity'];
+const CAPABILITIES = ['view_finance', 'manage_masters', 'manage_users', 'view_activity', 'manage_jobs'];
 const ROLE_CAPS = {
-  super_admin: ['view_finance', 'manage_masters', 'manage_users', 'view_activity'],
-  admin: ['manage_masters', 'manage_users', 'view_activity'],
-  team_lead: [],
+  super_admin: ['view_finance', 'manage_masters', 'manage_users', 'view_activity', 'manage_jobs'],
+  admin: ['manage_masters', 'manage_users', 'view_activity', 'manage_jobs'],
+  team_lead: ['manage_jobs'],
   member: [],
 };
 function capabilitiesOf(user) {

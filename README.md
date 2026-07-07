@@ -24,7 +24,7 @@ Version 2.0 adds the **Masters** layer (business verticals, teams, departments, 
 - **Multiple teams per job** — a job can belong to several teams at once (picked by checkbox), and every lead of any of those teams sees it on their board and in their approval queue.
 - **Issues & blockers** — anyone on a job can raise a blocker, issue or note against it, assign an owner, and resolve it; open blockers show as a red flag on the board, and leads and assignees are notified.
 - **Activity log (audit trail)** — an immutable, append-only record of who did what and when, across job creation, edits, assignments, stage and round changes, submissions, approvals, sub-tasks, attachments and issues. It's filterable by person, action and date, and each job has its own activity timeline.
-- **Granular permissions** — roles carry sensible defaults, and a Super Admin can additionally **grant** a capability to a specific person (for example, give one trusted admin financial visibility) or **revoke** a default — per person, from a single screen.
+- **Granular permissions** — roles carry sensible defaults, and a Super Admin can additionally **grant** a capability to a specific person (for example, give one trusted admin financial visibility, or let a member **create & assign jobs**) or **revoke** a default — per person, from a single screen.
 - **Admin-managed password resets** — a Super Admin or Admin issues a temporary password from Users; the person changes it at next sign-in. Everyone must change the seeded default on first login.
 - **Super-Admin reset by email** — a Super Admin who's locked out can request a **6-digit code** from the login screen; it's emailed (or logged, if SMTP isn't set) and used with a new password. Valid 15 minutes, single-use.
 - **Data management (Super-Admin)** — export the jobs dataset as **CSV or JSON**, filtered by **all / year / month**; take a **full JSON backup**; **restore** from a backup; **reset to zero** (clear all jobs, timesheets and activity while keeping people, clients and setup); or **wipe everything** (remove all data except the Super Admin logins). A live count of every table is shown.
@@ -43,7 +43,8 @@ Version 2.0 adds the **Masters** layer (business verticals, teams, departments, 
 | Backend — User management | ✅ (any role) | ✅ (lead/member only) | — | — |
 | Set a client's **retainership cost** | ✅ | ✅ (can set, can't view reports) | — | — |
 | View / edit **cost rates** & rate history | ✅ | ❌ | — | — |
-| Assign tasks to members | ✅ | ✅ | ✅ (own teams) | — |
+| Create jobs & assign to members | ✅ | ✅ | ✅ | grantable |
+| Assign tasks to members | ✅ | ✅ | ✅ (own teams) | grantable |
 | Approve finished work | ✅ (final) | ✅ (2nd) | ✅ (1st, own teams) | — |
 | Log time & submit day | ✅ | ✅ | ✅ | ✅ |
 | Timesheet gate applies | exempt | exempt | ✅ | ✅ |

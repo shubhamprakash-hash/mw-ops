@@ -14,6 +14,7 @@ const CAP_LABELS = {
   manage_masters: 'Manage masters',
   manage_users: 'Manage users',
   view_activity: 'View activity log',
+  manage_jobs: 'Create & assign jobs',
 };
 
 router.get('/', (req, res) => {

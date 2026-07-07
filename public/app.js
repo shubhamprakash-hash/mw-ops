@@ -157,7 +157,7 @@ async function logout(){ try{await api('POST','/logout');}catch{} ME=null; PRESE
 function navFor(role){
   const nav=[];
   if(hasCap('view_finance')) nav.push(['dashboard','Dashboard',icon('chart')]);
-  if(role==='member') nav.push(['my_jobs','My jobs',icon('check')]);
+  if(role==='member'){ nav.push(['my_jobs','My jobs',icon('check')]); if(hasCap('manage_jobs')) nav.push(['board','Jobs',icon('grid')]); }
   else if(role==='team_lead') nav.push(['my_jobs','My jobs',icon('check')],['board','Team board',icon('grid')]);
   else nav.push(['board','Jobs',icon('grid')]);
   nav.push(['timesheet','Timesheet',icon('clock')]);
@@ -440,7 +440,7 @@ async function viewBoard(C){
   try{ people=await api('GET','/people'); }catch{}
   const money=canMoney();
   const pa=document.getElementById('pageAction');
-  if(pa){ pa.innerHTML= isBackend()? `<button class="btn pri" id="newJob" style="margin-left:12px">${icon('plus')}New job</button>`:'';
+  if(pa){ pa.innerHTML= hasCap('manage_jobs')? `<button class="btn pri" id="newJob" style="margin-left:12px">${icon('plus')}New job</button>`:'';
     const nj=document.getElementById('newJob'); if(nj)nj.onclick=()=>jobModal(null); }
 
   let list=jobs.filter(j=>{
@@ -497,8 +497,8 @@ function boardRow(j,money){
       <td class="profitcell ${j.profit>=0?'pos':'neg'}">${INR(j.profit)}<small>${j.hours?j.hours+'h · '+INRk(j.cost):'no time'}</small></td>`:''}
     <td><div class="rowact">
       <button class="icon-btn" title="Details" data-open="${j.id}">${icon('layers')}</button>
-      <button class="icon-btn" title="Assign" data-assign="${j.id}">${icon('userplus')}</button>
-      ${j.stage!=='Done'&&j.stage!=='Approved'?`<button class="icon-btn" title="Advance to ${nextStage}" data-stage="${j.id}|${nextStage}">${icon('arrow')}</button>`:''}
+      ${hasCap('manage_jobs')?`<button class="icon-btn" title="Assign" data-assign="${j.id}">${icon('userplus')}</button>`:''}
+      ${(isBackend()||ME.role==='team_lead')&&j.stage!=='Done'&&j.stage!=='Approved'?`<button class="icon-btn" title="Advance to ${nextStage}" data-stage="${j.id}|${nextStage}">${icon('arrow')}</button>`:''}
       ${isBackend()?`<button class="icon-btn" title="Edit" data-edit="${j.id}">${icon('edit')}</button>
         <button class="icon-btn" title="Delete" data-del="${j.id}">${icon('trash')}</button>`:''}
     </div></td></tr>`;

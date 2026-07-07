@@ -5,7 +5,7 @@ const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 
-const { OFFICE_DOMAIN } = require('./db'); // initialises + seeds DB on first run
+const { OFFICE_DOMAIN, userHasCap } = require('./db'); // initialises + seeds DB on first run
 const auth = require('./auth');
 const { requireAuth, requireBackend, requireSuper, requireCap } = require('./middleware');
 
@@ -58,7 +58,17 @@ app.use('/api/notifications', requireAuth, require('./routes/notifications'));
 app.use('/api/issues', requireAuth, require('./routes/issues'));
 app.use('/api/custom-fields', requireAuth, require('./routes/customfields'));
 // capability-gated (role defaults + per-user grants)
-app.use('/api/masters', requireAuth, requireCap('manage_masters'), require('./routes/masters'));
+// Masters: managing (create/edit/delete) needs manage_masters; reading the
+// reference lists is also allowed for manage_jobs holders, since creating a job
+// needs the client/vertical/team/stage lists.
+const mastersGate = (req, res, next) => {
+  const ok = req.method === 'GET'
+    ? (userHasCap(req.user, 'manage_masters') || userHasCap(req.user, 'manage_jobs'))
+    : userHasCap(req.user, 'manage_masters');
+  if (!ok) return res.status(403).json({ error: req.method === 'GET' ? 'Forbidden.' : 'Managing masters requires permission.' });
+  next();
+};
+app.use('/api/masters', requireAuth, mastersGate, require('./routes/masters'));
 app.use('/api/users', requireAuth, requireCap('manage_users'), require('./routes/users'));
 app.use('/api/activity', requireAuth, requireCap('view_activity'), require('./routes/activity'));
 app.use('/api/finance', requireAuth, requireCap('view_finance'), require('./routes/finance'));
